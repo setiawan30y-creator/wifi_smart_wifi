@@ -72,9 +72,9 @@ Route::middleware(['auth'])->group(function () {
         return view('saas.subscription.locked');
     })->name('subscription.locked');
 
-    // ODP Routes
+    // Ekstrak koordinat dari link Google Maps (dipakai form ODP & Pelanggan).
+    // Resource 'odps' cukup didaftarkan sekali di bagian "ODP CRUD Route" (dengan can:odps).
     Route::post('odps/extract-coordinates', [App\Http\Controllers\OdpController::class, 'extractCoordinatesApi'])->name('api.extract-coordinates');
-    Route::resource('odps', App\Http\Controllers\OdpController::class);
 
     // Router MikroTik Routes
     Route::resource('routers', App\Http\Controllers\RouterController::class);
@@ -96,9 +96,6 @@ Route::middleware(['auth'])->group(function () {
     Route::post('pppoe/{id}/toggle', [App\Http\Controllers\PppoeController::class, 'toggle'])->name('pppoe.toggle');
     Route::resource('pppoe', App\Http\Controllers\PppoeController::class)->except(['show']);
     
-    // Layanan & Paket
-    Route::resource('packages', App\Http\Controllers\PackageController::class);
-
     // Keuangan & Tagihan didefinisikan di bawah agar route aksi khusus tidak bentrok dengan {invoice}.
 
     // Tenant PPOB Routes (Markup & Transaksi Penyewa)
@@ -201,9 +198,6 @@ Route::middleware(['auth'])->group(function () {
     // Device Stock CRUD
     Route::get('device-stocks/{deviceStock}/image', [DeviceStockController::class, 'image'])->name('device-stocks.image')->middleware('can:device_stocks')->whereNumber('deviceStock');
     Route::resource('device-stocks', DeviceStockController::class)->middleware('can:device_stocks')->except(['create', 'show', 'edit']);
-    
-    // Jurnal Umum (Controller belum dibuat)
-    // Route::resource('jurnal', JurnalController::class);
     
     // API untuk Route Waypoints (Edit Peta Jaringan)
     Route::post('/api/route-waypoints/odp/{odp}', [\App\Http\Controllers\Api\RouteWaypointController::class, 'updateOdp'])->name('api.route-waypoints.odp');
