@@ -2,6 +2,7 @@
 
 namespace App\Console\Commands;
 
+use App\Support\Phone;
 use App\Models\Customer;
 use App\Models\Invoice;
 use App\Models\Setting;
@@ -166,7 +167,7 @@ class RunBillingAutomation extends Command
                 );
 
                 if ($groupSamePhone) {
-                    $phone = $this->normalizePhone($customer->phone);
+                    $phone = Phone::normalize($customer->phone);
 
                     if ($phone) {
                         $pendingWaGroups[$phone][] = compact('customer', 'invoice', 'dueDate', 'message', 'template');
@@ -521,7 +522,7 @@ class RunBillingAutomation extends Command
 
     private function sendWa(string $token, string $phone, string $message): bool
     {
-        $target = $this->normalizePhone($phone);
+        $target = Phone::normalize($phone);
 
         if (!$target) {
             return false;
@@ -549,24 +550,6 @@ class RunBillingAutomation extends Command
         }
     }
 
-    private function normalizePhone(?string $phone): ?string
-    {
-        $number = preg_replace('/[^0-9]/', '', (string) $phone);
-
-        if ($number === '') {
-            return null;
-        }
-
-        if (str_starts_with($number, '0')) {
-            return '62' . substr($number, 1);
-        }
-
-        if (str_starts_with($number, '8')) {
-            return '62' . $number;
-        }
-
-        return $number;
-    }
 
     private function truthy($value): bool
     {

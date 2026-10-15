@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\Phone;
 use App\Models\Invoice;
 use App\Models\Customer;
 use App\Models\Setting;
@@ -45,7 +46,7 @@ class InvoiceService
         if ($customerIds->count() > 1) {
             $phones = $invoices
                 ->pluck('customer.phone')
-                ->map(fn ($phone) => $this->normalizePhone($phone))
+                ->map(fn ($phone) => Phone::normalize($phone))
                 ->filter()
                 ->unique()
                 ->values();
@@ -470,22 +471,4 @@ class InvoiceService
         ]);
     }
 
-    private function normalizePhone(?string $phone): ?string
-    {
-        $number = preg_replace('/[^0-9]/', '', (string) $phone);
-
-        if ($number === '') {
-            return null;
-        }
-
-        if (str_starts_with($number, '0')) {
-            return '62' . substr($number, 1);
-        }
-
-        if (str_starts_with($number, '8')) {
-            return '62' . $number;
-        }
-
-        return $number;
-    }
 }

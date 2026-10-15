@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\Phone;
 use Illuminate\Http\Request;
 use App\Models\Setting;
 use App\Models\Customer;
@@ -44,7 +45,7 @@ class WaGatewayController extends Controller
             ];
         }
 
-        $phone = $this->normalizePhone($phone);
+        $phone = Phone::normalize($phone);
 
         if (!$phone) {
             return [
@@ -153,7 +154,7 @@ class WaGatewayController extends Controller
 
         foreach ($customers as $customer) {
             $latestInvoice = $customer->latestInvoice;
-            $phone = $this->normalizePhone($customer->phone);
+            $phone = Phone::normalize($customer->phone);
 
             if (!$phone) {
                 continue;
@@ -437,7 +438,7 @@ class WaGatewayController extends Controller
         $delay = max(1, (int) ($data['delay'] ?? 2));
 
         foreach ($customers as $customer) {
-            $phone = $this->normalizePhone($customer->phone);
+            $phone = Phone::normalize($customer->phone);
             if (!$phone) {
                 $failed++;
                 continue;
@@ -494,24 +495,6 @@ class WaGatewayController extends Controller
         ]);
     }
 
-    private function normalizePhone(?string $phone): ?string
-    {
-        $number = preg_replace('/[^0-9]/', '', (string) $phone);
-
-        if ($number === '') {
-            return null;
-        }
-
-        if (str_starts_with($number, '0')) {
-            return '62' . substr($number, 1);
-        }
-
-        if (str_starts_with($number, '8')) {
-            return '62' . $number;
-        }
-
-        return $number;
-    }
 
     private function prepareBroadcastTemplate(string $message): string
     {
