@@ -1,0 +1,19 @@
+{
+  "name": "Smart WiFi Billing",
+  "short_name": "SmartBilling",
+  "description": "Aplikasi billing pelanggan WiFi RT/RW.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "background_color": "#020617",
+  "theme_color": "#4f46e5",
+  "categories": ["business", "productivity", "utilities"],
+  "icons": [
+    {
+      "src": "/favicon.ico",
+      "sizes": "48x48",
+      "type": "image/x-icon"
+    }
+  ]
+}

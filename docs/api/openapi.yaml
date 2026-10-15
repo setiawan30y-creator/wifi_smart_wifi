@@ -1,0 +1,551 @@
+openapi: 3.0.3
+info:
+  title: WiFi Smart Billing API
+  version: 1.0.0
+  description: REST API v1 for Flutter Android, iOS, and Web clients.
+servers:
+  - url: https://api.example.com/api/v1
+    description: Production
+  - url: http://wifi_smartbilling.test/api/v1
+    description: Local Laragon
+security:
+  - bearerAuth: []
+paths:
+  /auth/login:
+    post:
+      tags: [Auth]
+      security: []
+      summary: Login and create Sanctum bearer token
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+                device_name:
+                  type: string
+                  example: android-pixel-8
+      responses:
+        "200":
+          description: Login success
+        "401":
+          description: Invalid credentials
+  /auth/me:
+    get:
+      tags: [Auth]
+      summary: Get authenticated user profile
+      responses:
+        "200":
+          description: Current user
+  /auth/logout:
+    post:
+      tags: [Auth]
+      summary: Revoke current access token
+      responses:
+        "200":
+          description: Logout success
+  /customers:
+    get:
+      tags: [Customers]
+      summary: List customers
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, inactive, isolated, stopped]
+        - in: query
+          name: per_page
+          schema:
+            type: integer
+            default: 15
+      responses:
+        "200":
+          description: Paginated customers
+    post:
+      tags: [Customers]
+      summary: Create customer
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CustomerWrite"
+      responses:
+        "201":
+          description: Customer created
+  /customers/{id}:
+    get:
+      tags: [Customers]
+      summary: Get customer detail
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      responses:
+        "200":
+          description: Customer detail
+    put:
+      tags: [Customers]
+      summary: Update customer
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: "#/components/schemas/CustomerWrite"
+      responses:
+        "200":
+          description: Customer updated
+    delete:
+      tags: [Customers]
+      summary: Delete customer
+      parameters:
+        - $ref: "#/components/parameters/CustomerId"
+      responses:
+        "200":
+          description: Customer deleted
+  /packages:
+    get:
+      tags: [Packages]
+      summary: List packages
+      responses:
+        "200":
+          description: Paginated packages
+    post:
+      tags: [Packages]
+      summary: Create package
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PackageWrite"
+      responses:
+        "201":
+          description: Package created
+  /packages/{id}:
+    get:
+      tags: [Packages]
+      summary: Get package detail
+      parameters:
+        - $ref: "#/components/parameters/PackageId"
+      responses:
+        "200":
+          description: Package detail
+    put:
+      tags: [Packages]
+      summary: Update package
+      parameters:
+        - $ref: "#/components/parameters/PackageId"
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PackageWrite"
+      responses:
+        "200":
+          description: Package updated
+    delete:
+      tags: [Packages]
+      summary: Delete package
+      parameters:
+        - $ref: "#/components/parameters/PackageId"
+      responses:
+        "200":
+          description: Package deleted
+  /invoices:
+    get:
+      tags: [Invoices]
+      summary: List invoices
+      parameters:
+        - in: query
+          name: month
+          schema:
+            type: integer
+        - in: query
+          name: year
+          schema:
+            type: integer
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [paid, unpaid]
+      responses:
+        "200":
+          description: Paginated invoices
+  /invoices/generate:
+    post:
+      tags: [Invoices]
+      summary: Generate monthly invoices
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [month, year]
+              properties:
+                month:
+                  type: integer
+                year:
+                  type: integer
+      responses:
+        "200":
+          description: Generate result
+  /invoices/pay-batch:
+    post:
+      tags: [Invoices]
+      summary: Pay multiple invoices
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [invoice_ids, payment_method]
+              properties:
+                invoice_ids:
+                  type: array
+                  items:
+                    type: integer
+                payment_method:
+                  type: string
+                payment_proof:
+                  type: string
+                  format: binary
+      responses:
+        "200":
+          description: Payment success
+  /odps:
+    get:
+      tags: [ODP]
+      summary: List ODPs
+      responses:
+        "200":
+          description: Paginated ODPs
+    post:
+      tags: [ODP]
+      summary: Create ODP
+      responses:
+        "201":
+          description: ODP created
+  /olts:
+    get:
+      tags: [OLT]
+      summary: List OLT devices
+      parameters:
+        - in: query
+          name: search
+          schema:
+            type: string
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [online, offline]
+        - in: query
+          name: brand
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Paginated OLT devices
+    post:
+      tags: [OLT]
+      summary: Create OLT device
+      responses:
+        "201":
+          description: OLT created
+  /olts/{id}:
+    get:
+      tags: [OLT]
+      summary: Get OLT detail
+      parameters:
+        - $ref: "#/components/parameters/GenericId"
+      responses:
+        "200":
+          description: OLT detail
+    put:
+      tags: [OLT]
+      summary: Update OLT device
+      parameters:
+        - $ref: "#/components/parameters/GenericId"
+      responses:
+        "200":
+          description: OLT updated
+    delete:
+      tags: [OLT]
+      summary: Delete OLT device
+      parameters:
+        - $ref: "#/components/parameters/GenericId"
+      responses:
+        "200":
+          description: OLT deleted
+  /olts/{id}/test:
+    post:
+      tags: [OLT]
+      summary: Test OLT connectivity
+      parameters:
+        - $ref: "#/components/parameters/GenericId"
+      responses:
+        "200":
+          description: OLT reachable
+        "422":
+          description: OLT unreachable
+  /tickets:
+    get:
+      tags: [Tickets]
+      summary: List support tickets
+      responses:
+        "200":
+          description: Paginated tickets
+    post:
+      tags: [Tickets]
+      summary: Create support ticket
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [subject, priority, message]
+              properties:
+                subject:
+                  type: string
+                priority:
+                  type: string
+                  enum: [low, medium, high]
+                message:
+                  type: string
+      responses:
+        "201":
+          description: Ticket created
+  /tickets/{id}/reply:
+    post:
+      tags: [Tickets]
+      summary: Reply to ticket
+      parameters:
+        - $ref: "#/components/parameters/GenericId"
+      responses:
+        "200":
+          description: Reply sent
+  /tickets/{id}/status:
+    patch:
+      tags: [Tickets]
+      summary: Update ticket status
+      parameters:
+        - $ref: "#/components/parameters/GenericId"
+      responses:
+        "200":
+          description: Status updated
+  /device-stocks:
+    get:
+      tags: [Device Stocks]
+      summary: List device stock
+      responses:
+        "200":
+          description: Paginated device stock
+    post:
+      tags: [Device Stocks]
+      summary: Create device stock
+      responses:
+        "201":
+          description: Device stock created
+  /expenses:
+    get:
+      tags: [Expenses]
+      summary: List expenses
+      responses:
+        "200":
+          description: Paginated expenses
+    post:
+      tags: [Expenses]
+      summary: Create expense
+      responses:
+        "201":
+          description: Expense created
+  /financial-reports/summary:
+    get:
+      tags: [Financial Reports]
+      summary: Financial summary by period
+      parameters:
+        - in: query
+          name: start_date
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: end_date
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Financial report summary
+  /wallet/balance:
+    get:
+      tags: [Wallet]
+      summary: Get customer wallet balance
+      parameters:
+        - in: query
+          name: customer_id
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Wallet balance
+  /wallet/transactions:
+    get:
+      tags: [Wallet]
+      summary: List wallet transactions
+      responses:
+        "200":
+          description: Paginated wallet transactions
+  /wallet/topup:
+    post:
+      tags: [Wallet]
+      summary: Credit customer wallet
+      responses:
+        "201":
+          description: Wallet credited
+  /ppob/products:
+    get:
+      tags: [PPOB]
+      summary: List active PPOB products
+      responses:
+        "200":
+          description: Paginated PPOB products
+  /ppob/transactions:
+    get:
+      tags: [PPOB]
+      summary: List PPOB transactions
+      responses:
+        "200":
+          description: Paginated PPOB transactions
+  /ppob/purchase:
+    post:
+      tags: [PPOB]
+      summary: Purchase PPOB product
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [product_id, customer_number]
+              properties:
+                customer_id:
+                  type: integer
+                  nullable: true
+                product_id:
+                  type: integer
+                customer_number:
+                  type: string
+      responses:
+        "201":
+          description: PPOB purchase processed
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: Sanctum
+  parameters:
+    CustomerId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: integer
+    PackageId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: integer
+    GenericId:
+      in: path
+      name: id
+      required: true
+      schema:
+        type: integer
+  schemas:
+    CustomerWrite:
+      type: object
+      required: [package_id, name, phone, address, billing_day, status_rumah]
+      properties:
+        package_id:
+          type: integer
+        odp_id:
+          type: integer
+          nullable: true
+        name:
+          type: string
+        email:
+          type: string
+          nullable: true
+        phone:
+          type: string
+        address:
+          type: string
+        maps_link:
+          type: string
+          nullable: true
+        billing_day:
+          type: integer
+          minimum: 1
+          maximum: 28
+        tanggal_pasang:
+          type: string
+          format: date
+          nullable: true
+        pppoe_username:
+          type: string
+          nullable: true
+        pppoe_password:
+          type: string
+          nullable: true
+        status_rumah:
+          type: string
+          enum: [milik_sendiri, ngontrak]
+        pemilik_rumah:
+          type: string
+          nullable: true
+        jalur:
+          type: string
+          enum: [FO, LAN]
+          nullable: true
+        perangkat:
+          type: string
+          nullable: true
+    PackageWrite:
+      type: object
+      required: [name, price]
+      properties:
+        name:
+          type: string
+        price:
+          type: integer
+        speed:
+          type: string
+          nullable: true
+        description:
+          type: string
+          nullable: true
+        sync_mikrotik:
+          type: boolean

@@ -1,0 +1,9 @@
+[Unit]
+Description=WiFi Smart Billing Laravel Scheduler
+
+[Service]
+Type=oneshot
+WorkingDirectory=/var/www/wifi_smartbilling
+ExecStart=/usr/bin/php artisan schedule:run
+User=www-data
+Group=www-data
