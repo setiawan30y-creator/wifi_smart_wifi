@@ -136,6 +136,8 @@ class DeviceStockAndExpenseTest extends TestCase
         ]);
 
         $response = $this->actingAs($this->user)->post(route('customers.store'), [
+            'billing_type' => 'paid',
+            'billing_mode' => 'postpaid',
             'package_id' => $package->id,
             'name' => 'Customer Baru',
             'phone' => '08123456789',
@@ -198,6 +200,8 @@ class DeviceStockAndExpenseTest extends TestCase
         
         // Now update customer to use device 2
         $response = $this->actingAs($this->user)->put(route('customers.update', $customer->id), [
+            'billing_type' => 'paid',
+            'billing_mode' => 'postpaid',
             'package_id' => $package->id,
             'name' => 'Customer Baru',
             'phone' => '08123456789',

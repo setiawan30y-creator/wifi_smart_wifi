@@ -65,7 +65,7 @@ class InvoiceTest extends TestCase
             'status' => 'unpaid',
         ]);
 
-        $response = $this->get(route('invoices.index'));
+        $response = $this->get(route('invoices.index', ['month' => 6, 'year' => 2026]));
 
         $response->assertStatus(200);
         $response->assertSee('Budi Santoso');

@@ -63,7 +63,7 @@ class OdpTest extends TestCase
         $response->assertStatus(200);
         $response->assertSee('ODP-TEST-01');
         $response->assertSee('FO (1/8)');
-        $response->assertSee('8 Port');
+        $response->assertViewHas('totalFoPorts', 8);
     }
 
     public function test_can_create_odp_with_auto_ports()
@@ -238,6 +238,8 @@ class OdpTest extends TestCase
         ]);
 
         $response = $this->post(route('customers.store'), [
+            'billing_type' => 'paid',
+            'billing_mode' => 'postpaid',
             'package_id' => $package->id,
             'name' => 'Pelanggan Baru',
             'phone' => '08987654321',
@@ -274,6 +276,8 @@ class OdpTest extends TestCase
         $rumahFile = \Illuminate\Http\UploadedFile::fake()->image('rumah.jpg');
 
         $response = $this->post(route('customers.store'), [
+            'billing_type' => 'paid',
+            'billing_mode' => 'postpaid',
             'package_id' => $package->id,
             'name' => 'Pelanggan Foto',
             'phone' => '08111222333',
@@ -303,6 +307,8 @@ class OdpTest extends TestCase
         ]);
 
         $response = $this->post(route('customers.store'), [
+            'billing_type' => 'paid',
+            'billing_mode' => 'postpaid',
             'package_id' => $package->id,
             'name' => 'Pelanggan Jalur Device',
             'phone' => '08222333444',
