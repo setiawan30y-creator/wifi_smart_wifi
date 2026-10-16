@@ -74,11 +74,11 @@ Route::middleware(['auth'])->group(function () {
 
     // Ekstrak koordinat dari link Google Maps (dipakai form ODP & Pelanggan).
     // Resource 'odps' cukup didaftarkan sekali di bagian "ODP CRUD Route" (dengan can:odps).
-    Route::post('odps/extract-coordinates', [App\Http\Controllers\OdpController::class, 'extractCoordinatesApi'])->name('api.extract-coordinates');
+    Route::post('odps/extract-coordinates', [App\Http\Controllers\OdpController::class, 'extractCoordinatesApi'])->name('api.extract-coordinates')->middleware('can:coordinates');
 
     // Router MikroTik Routes
-    Route::resource('routers', App\Http\Controllers\RouterController::class);
-    Route::get('routers/{router}/test', [App\Http\Controllers\RouterController::class, 'testConnection'])->name('routers.test');
+    Route::resource('routers', App\Http\Controllers\RouterController::class)->middleware('can:routers');
+    Route::get('routers/{router}/test', [App\Http\Controllers\RouterController::class, 'testConnection'])->name('routers.test')->middleware('can:routers');
 
     // OLT Routes
     Route::get('olts/{olt}/test', [OltController::class, 'testConnection'])->name('olts.test')->middleware('can:olts');
@@ -90,36 +90,36 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('olts', OltController::class)->middleware('can:olts')->except(['create', 'edit']);
 
     // PPPoE Routes
-    Route::post('pppoe/import', [App\Http\Controllers\PppoeController::class, 'import'])->name('pppoe.import');
-    Route::post('pppoe/import-file', [App\Http\Controllers\PppoeController::class, 'importFile'])->name('pppoe.importFile');
-    Route::delete('pppoe/reset-table', [App\Http\Controllers\PppoeController::class, 'resetTable'])->name('pppoe.reset-table');
-    Route::post('pppoe/{id}/toggle', [App\Http\Controllers\PppoeController::class, 'toggle'])->name('pppoe.toggle');
-    Route::resource('pppoe', App\Http\Controllers\PppoeController::class)->except(['show']);
+    Route::post('pppoe/import', [App\Http\Controllers\PppoeController::class, 'import'])->name('pppoe.import')->middleware('can:pppoe');
+    Route::post('pppoe/import-file', [App\Http\Controllers\PppoeController::class, 'importFile'])->name('pppoe.importFile')->middleware('can:pppoe');
+    Route::delete('pppoe/reset-table', [App\Http\Controllers\PppoeController::class, 'resetTable'])->name('pppoe.reset-table')->middleware('can:pppoe');
+    Route::post('pppoe/{id}/toggle', [App\Http\Controllers\PppoeController::class, 'toggle'])->name('pppoe.toggle')->middleware('can:pppoe');
+    Route::resource('pppoe', App\Http\Controllers\PppoeController::class)->except(['show'])->middleware('can:pppoe');
     
     // Keuangan & Tagihan didefinisikan di bawah agar route aksi khusus tidak bentrok dengan {invoice}.
 
     // Tenant PPOB Routes (Markup & Transaksi Penyewa)
-    Route::group(['prefix' => 'admin/ppob', 'as' => 'admin.ppob.'], function () {
+    Route::group(['prefix' => 'admin/ppob', 'as' => 'admin.ppob.', 'middleware' => 'can:settings'], function () {
         Route::get('markup', [\App\Http\Controllers\Admin\Ppob\TenantPpobMarkupController::class, 'index'])->name('markup.index');
         Route::post('markup', [\App\Http\Controllers\Admin\Ppob\TenantPpobMarkupController::class, 'store'])->name('markup.store');
         Route::get('transactions', [\App\Http\Controllers\Admin\Ppob\TenantPpobTransactionController::class, 'index'])->name('transactions.index');
     });
 
     // Tagihan SaaS (Penyewa membayar aplikasi)
-    Route::get('admin/saas-invoices', [\App\Http\Controllers\Admin\SaasInvoiceController::class, 'index'])->name('admin.saas_invoices.index');
-    Route::post('admin/saas-invoices/{invoice}/upload-proof', [\App\Http\Controllers\Admin\SaasInvoiceController::class, 'uploadProof'])->name('admin.saas_invoices.upload_proof');
+    Route::get('admin/saas-invoices', [\App\Http\Controllers\Admin\SaasInvoiceController::class, 'index'])->name('admin.saas_invoices.index')->middleware('can:settings');
+    Route::post('admin/saas-invoices/{invoice}/upload-proof', [\App\Http\Controllers\Admin\SaasInvoiceController::class, 'uploadProof'])->name('admin.saas_invoices.upload_proof')->middleware('can:settings');
 
     // Client/Customer Portal Routes
     Route::group(['prefix' => 'client', 'as' => 'client.'], function () {
-        Route::get('dashboard', [\App\Http\Controllers\Client\DashboardController::class, 'index'])->name('dashboard');
+        Route::get('dashboard', [\App\Http\Controllers\Client\DashboardController::class, 'index'])->name('dashboard')->middleware('can:dashboard');
         
         // Wallet / Saldo
-        Route::post('wallet/topup', [\App\Http\Controllers\Client\WalletController::class, 'topup'])->name('wallet.topup');
-        Route::post('wallet/pay-wifi', [\App\Http\Controllers\Client\WalletController::class, 'payWifi'])->name('wallet.pay-wifi');
+        Route::post('wallet/topup', [\App\Http\Controllers\Client\WalletController::class, 'topup'])->name('wallet.topup')->middleware('can:wallet');
+        Route::post('wallet/pay-wifi', [\App\Http\Controllers\Client\WalletController::class, 'payWifi'])->name('wallet.pay-wifi')->middleware('can:wallet');
         
         // PPOB Catalog
-        Route::get('ppob', [\App\Http\Controllers\Client\PpobController::class, 'index'])->name('ppob.index');
-        Route::post('ppob/buy', [\App\Http\Controllers\Client\PpobController::class, 'buy'])->name('ppob.buy');
+        Route::get('ppob', [\App\Http\Controllers\Client\PpobController::class, 'index'])->name('ppob.index')->middleware('can:ppob');
+        Route::post('ppob/buy', [\App\Http\Controllers\Client\PpobController::class, 'buy'])->name('ppob.buy')->middleware('can:ppob');
     });
 
     // Client App Preview (Mockup - to be replaced by actual dashboard above)
@@ -159,15 +159,15 @@ Route::middleware(['auth'])->group(function () {
     Route::post('invoices/automation-settings', [InvoiceAutomationSettingController::class, 'update'])->name('invoices.automation-settings.update')->middleware('can:invoices');
     Route::post('invoices/automation-settings/run-now', [InvoiceAutomationSettingController::class, 'runNow'])->name('invoices.automation-settings.run-now')->middleware('can:invoices');
     Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index')->middleware('can:invoices');
-    Route::post('invoices/bulk-wa-qris', [\App\Http\Controllers\TripayController::class, 'requestGroupTransaction'])->name('invoices.bulkWaQris');
-    Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show')->whereNumber('invoice');
-    Route::get('invoices/{invoice}/print', [InvoiceController::class, 'print'])->name('invoices.print')->whereNumber('invoice');
+    Route::post('invoices/bulk-wa-qris', [\App\Http\Controllers\TripayController::class, 'requestGroupTransaction'])->name('invoices.bulkWaQris')->middleware('can:invoices');
+    Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show')->middleware('can:invoices')->whereNumber('invoice');
+    Route::get('invoices/{invoice}/print', [InvoiceController::class, 'print'])->name('invoices.print')->middleware('can:invoices')->whereNumber('invoice');
 
     // Tripay Payment Gateway
-    Route::post('invoices/{invoice}/pay', [\App\Http\Controllers\TripayController::class, 'requestTransaction'])->name('invoices.pay')->whereNumber('invoice');
+    Route::post('invoices/{invoice}/pay', [\App\Http\Controllers\TripayController::class, 'requestTransaction'])->name('invoices.pay')->middleware('can:invoices')->whereNumber('invoice');
 
     // Live Traffic API
-    Route::get('api/mikrotik/traffic', [\App\Http\Controllers\DashboardController::class, 'traffic'])->name('api.mikrotik.traffic');
+    Route::get('api/mikrotik/traffic', [\App\Http\Controllers\DashboardController::class, 'traffic'])->name('api.mikrotik.traffic')->middleware('can:dashboard_card_traffic_live');
     
     Route::post('invoices/pay-batch', [InvoiceController::class, 'payBatch'])->name('invoices.pay-batch')->middleware('can:invoices');
     Route::post('invoices/generate-customer', [InvoiceController::class, 'generateForCustomer'])->name('invoices.generate-customer')->middleware('can:invoices');
@@ -186,22 +186,22 @@ Route::middleware(['auth'])->group(function () {
     Route::resource('odps', OdpController::class)->middleware('can:odps');
 
     // Helpdesk / Ticketing Routes
-    Route::get('tickets', [\App\Http\Controllers\TicketController::class, 'index'])->name('tickets.index');
-    Route::get('tickets/create', [\App\Http\Controllers\TicketController::class, 'create'])->name('tickets.create');
-    Route::post('tickets', [\App\Http\Controllers\TicketController::class, 'store'])->name('tickets.store');
-    Route::get('tickets/{ticket}', [\App\Http\Controllers\TicketController::class, 'show'])->name('tickets.show');
-    Route::post('tickets/{ticket}/reply', [\App\Http\Controllers\TicketController::class, 'reply'])->name('tickets.reply');
-    Route::post('tickets/{ticket}/take', [\App\Http\Controllers\TicketController::class, 'take'])->name('tickets.take');
-    Route::post('tickets/{ticket}/complete', [\App\Http\Controllers\TicketController::class, 'complete'])->name('tickets.complete');
-    Route::patch('tickets/{ticket}/status', [\App\Http\Controllers\TicketController::class, 'updateStatus'])->name('tickets.status');
+    Route::get('tickets', [\App\Http\Controllers\TicketController::class, 'index'])->name('tickets.index')->middleware('can:tickets');
+    Route::get('tickets/create', [\App\Http\Controllers\TicketController::class, 'create'])->name('tickets.create')->middleware('can:tickets');
+    Route::post('tickets', [\App\Http\Controllers\TicketController::class, 'store'])->name('tickets.store')->middleware('can:tickets');
+    Route::get('tickets/{ticket}', [\App\Http\Controllers\TicketController::class, 'show'])->name('tickets.show')->middleware('can:tickets');
+    Route::post('tickets/{ticket}/reply', [\App\Http\Controllers\TicketController::class, 'reply'])->name('tickets.reply')->middleware('can:tickets');
+    Route::post('tickets/{ticket}/take', [\App\Http\Controllers\TicketController::class, 'take'])->name('tickets.take')->middleware('can:tickets');
+    Route::post('tickets/{ticket}/complete', [\App\Http\Controllers\TicketController::class, 'complete'])->name('tickets.complete')->middleware('can:tickets');
+    Route::patch('tickets/{ticket}/status', [\App\Http\Controllers\TicketController::class, 'updateStatus'])->name('tickets.status')->middleware('can:tickets');
     
     // Device Stock CRUD
     Route::get('device-stocks/{deviceStock}/image', [DeviceStockController::class, 'image'])->name('device-stocks.image')->middleware('can:device_stocks')->whereNumber('deviceStock');
     Route::resource('device-stocks', DeviceStockController::class)->middleware('can:device_stocks')->except(['create', 'show', 'edit']);
     
     // API untuk Route Waypoints (Edit Peta Jaringan)
-    Route::post('/api/route-waypoints/odp/{odp}', [\App\Http\Controllers\Api\RouteWaypointController::class, 'updateOdp'])->name('api.route-waypoints.odp');
-    Route::post('/api/route-waypoints/customer/{customer}', [\App\Http\Controllers\Api\RouteWaypointController::class, 'updateCustomer'])->name('api.route-waypoints.customer');
+    Route::post('/api/route-waypoints/odp/{odp}', [\App\Http\Controllers\Api\RouteWaypointController::class, 'updateOdp'])->name('api.route-waypoints.odp')->middleware('can:network_map');
+    Route::post('/api/route-waypoints/customer/{customer}', [\App\Http\Controllers\Api\RouteWaypointController::class, 'updateCustomer'])->name('api.route-waypoints.customer')->middleware('can:network_map');
     
     // Expenses CRUD
     Route::get('expenses/{expense}/receipt-photo', [ExpenseController::class, 'receiptPhoto'])->name('expenses.receipt-photo')->middleware('can:expenses')->whereNumber('expense');
@@ -227,8 +227,8 @@ Route::middleware(['auth'])->group(function () {
     Route::post('settings/dashboard-interfaces', [SettingsController::class, 'updateDashboardInterfaces'])->name('settings.dashboard_interfaces')->middleware('can:settings');
 
     // Fonnte WA Gateway
-    Route::post('wa/send', [\App\Http\Controllers\WaGatewayController::class, 'send'])->name('wa.send');
-    Route::post('wa/broadcast', [\App\Http\Controllers\WaGatewayController::class, 'broadcast'])->name('wa.broadcast');
+    Route::post('wa/send', [\App\Http\Controllers\WaGatewayController::class, 'send'])->name('wa.send')->middleware('can:whatsapp');
+    Route::post('wa/broadcast', [\App\Http\Controllers\WaGatewayController::class, 'broadcast'])->name('wa.broadcast')->middleware('can:whatsapp');
 });
 
 // Tripay Callback/Webhook (Public Route)

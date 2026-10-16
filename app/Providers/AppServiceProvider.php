@@ -2,7 +2,9 @@
 
 namespace App\Providers;
 
+use App\Support\Permissions;
 use App\Support\Tenancy\TenantContext;
+use Illuminate\Support\Facades\Gate;
 use Illuminate\Auth\Events\Authenticated;
 use Illuminate\Auth\Events\Login;
 use Illuminate\Auth\Events\Logout;
@@ -39,43 +41,20 @@ class AppServiceProvider extends ServiceProvider
             URL::forceScheme('https');
         }
 
-        // Define dynamic gates based on modules
-        $modules = [
-            'dashboard',
-            'dashboard_card_pppoe_active',
-            'dashboard_card_pppoe_offline',
-            'dashboard_card_odp_offline',
-            'dashboard_card_pppoe_disabled',
-            'dashboard_card_pppoe_isolated',
-            'dashboard_card_traffic_live',
-            'dashboard_card_active_customers',
-            'dashboard_card_monthly_target',
-            'dashboard_card_collected_revenue',
-            'dashboard_card_unpaid_amount',
-            'dashboard_card_collection_progress',
-            'dashboard_card_invoice_generator',
-            'dashboard_card_recent_payments',
-            'customers',
-            'packages',
-            'invoices',
-            'odps',
-            'olts',
-            'network_map',
-            'device_stocks',
-            'expenses',
-            'financial_reports',
-            'wa_templates',
-            'tickets',
-            'wallet',
-            'ppob',
-            'settings'
-        ];
-
-        foreach ($modules as $module) {
-            \Illuminate\Support\Facades\Gate::define($module, function ($user) use ($module) {
-                return $user->hasPermission($module);
-            });
+        // Satu Gate per modul hak akses (daftar modul ada di App\Support\Permissions).
+        foreach (Permissions::modules() as $module) {
+            Gate::define($module, fn ($user) => $user->hasPermission($module));
         }
+
+        // Kirim WA dipakai dari halaman Pelanggan maupun Invoice.
+        // Ekstrak koordinat Google Maps dipakai form Pelanggan, Calon Pasang, dan ODP.
+        Gate::define('coordinates', fn ($user) => $user->hasPermission('customers')
+            || $user->hasPermission('installation_requests')
+            || $user->hasPermission('odps'));
+
+        // Pelanggan (role client) tidak boleh memakai gateway WA perusahaan.
+        Gate::define('whatsapp', fn ($user) => $user->role !== 'client'
+            && ($user->hasPermission('customers') || $user->hasPermission('invoices')));
     }
 
     private function shouldForceHttpsScheme(): bool

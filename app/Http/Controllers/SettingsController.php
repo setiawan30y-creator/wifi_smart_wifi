@@ -3,9 +3,8 @@
 namespace App\Http\Controllers;
 
 use App\Models\User;
-use App\Models\Role;
 use App\Models\Setting;
-use App\Models\Permission;
+use App\Support\Permissions;
 use App\Models\WaTemplate;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Auth;
@@ -132,44 +131,9 @@ class SettingsController extends Controller
             '{nominal_dibayar_terbilang}' => 'Total nominal terbilang, contoh: (seratus lima puluh ribu Rupiah)',
         ];
 
-        // Access permissions map
-        $permissionsJson = Setting::get('permissions_map');
-        $permissions = $permissionsJson ? json_decode($permissionsJson, true) : [];
-
-        $permissions = $this->mergePermissionsWithDefaults($permissions);
-
-        // Available modules/permissions
-        $modules = [
-            'dashboard' => 'Dashboard',
-            'dashboard_card_pppoe_active' => 'Dashboard: Kartu PPPoE Aktif',
-            'dashboard_card_pppoe_offline' => 'Dashboard: Kartu PPPoE Offline',
-            'dashboard_card_odp_offline' => 'Dashboard: Kartu ODP Offline',
-            'dashboard_card_pppoe_disabled' => 'Dashboard: Kartu PPPoE Disable',
-            'dashboard_card_pppoe_isolated' => 'Dashboard: Kartu PPPoE Isolir',
-            'dashboard_card_traffic_live' => 'Dashboard: Trafik Jaringan Live',
-            'dashboard_card_active_customers' => 'Dashboard: Kartu Pelanggan Aktif',
-            'dashboard_card_monthly_target' => 'Dashboard: Kartu Target Bulanan',
-            'dashboard_card_collected_revenue' => 'Dashboard: Kartu Dana Terkumpul',
-            'dashboard_card_unpaid_amount' => 'Dashboard: Kartu Tertunggak',
-            'dashboard_card_collection_progress' => 'Dashboard: Progress Penagihan',
-            'dashboard_card_invoice_generator' => 'Dashboard: Pembuatan Tagihan',
-            'dashboard_card_recent_payments' => 'Dashboard: Riwayat Pembayaran',
-            'customers' => 'Pelanggan',
-            'installation_requests' => 'Calon Pasang',
-            'packages' => 'Paket Layanan',
-            'invoices' => 'Tagihan & Invoice',
-            'odps' => 'Manajemen ODP',
-            'olts' => 'Manajemen OLT',
-            'network_map' => 'Peta Jaringan',
-            'device_stocks' => 'Stok Perangkat',
-            'expenses' => 'Pengeluaran Kas',
-            'financial_reports' => 'Laporan Keuangan',
-            'wa_templates' => 'Template WA',
-            'tickets' => 'Tiket Bantuan',
-            'wallet' => 'Wallet Pelanggan',
-            'ppob' => 'PPOB',
-            'settings' => 'Pengaturan'
-        ];
+        // Hak akses: matriks tenant aktif + daftar modul (App\Support\Permissions)
+        $permissions = Permissions::matrix();
+        $modules = Permissions::labels();
 
         // Dashboard Interfaces
         $mikrotikService = new \App\Services\MikrotikService();
@@ -509,172 +473,21 @@ class SettingsController extends Controller
      */
     public function updatePermissions(Request $request)
     {
-        // Default mapping if input permissions array is empty/not present
-        $matrix = $this->defaultPermissionsMap();
+        $submitted = $request->input('permissions', []);
+        $stored = [];
 
-        foreach ($matrix as $role => $modules) {
-            foreach ($modules as $module => $value) {
-                $matrix[$role][$module] = false;
+        // Checkbox yang tidak dicentang tidak terkirim, jadi semua modul dianggap false dulu.
+        foreach (Permissions::EDITABLE_ROLES as $role) {
+            foreach (Permissions::modules() as $module) {
+                $stored[$role][$module] = (bool) ($submitted[$role][$module] ?? false);
             }
         }
 
-        // Fill with submitted permissions
-        $permissions = $request->input('permissions', []);
-        foreach ($permissions as $role => $mods) {
-            if (in_array($role, ['admin', 'tehnisi'])) {
-                foreach ($mods as $mod => $val) {
-                    $matrix[$role][$mod] = (bool)$val;
-                }
-            }
-        }
-
-        // Always force settings permission to false for technicians, to prevent them from modifying their own roles
-        $matrix['tehnisi']['settings'] = false;
-
-        Setting::set('permissions_map', $matrix);
-        $this->syncRolePermissions($matrix);
+        // Batasan tetap (mis. teknisi tidak boleh membuka Pengaturan) diterapkan oleh normalize().
+        $matrix = Permissions::normalize($stored);
+        Setting::set('permissions_map', array_intersect_key($matrix, array_flip(Permissions::EDITABLE_ROLES)));
 
         return redirect()->route('settings.index', ['tab' => 'permissions'])->with('success', 'Pengaturan hak akses berhasil disimpan.');
     }
 
-    private function defaultPermissionsMap(): array
-    {
-        $dashboardCards = [
-            'dashboard_card_pppoe_active',
-            'dashboard_card_pppoe_offline',
-            'dashboard_card_odp_offline',
-            'dashboard_card_pppoe_disabled',
-            'dashboard_card_pppoe_isolated',
-            'dashboard_card_traffic_live',
-            'dashboard_card_active_customers',
-            'dashboard_card_monthly_target',
-            'dashboard_card_collected_revenue',
-            'dashboard_card_unpaid_amount',
-            'dashboard_card_collection_progress',
-            'dashboard_card_invoice_generator',
-            'dashboard_card_recent_payments',
-        ];
-
-        $admin = [
-            'dashboard' => true,
-            'customers' => true,
-            'packages' => true,
-            'invoices' => true,
-            'odps' => true,
-            'olts' => true,
-            'network_map' => true,
-            'device_stocks' => true,
-            'expenses' => true,
-            'financial_reports' => true,
-            'wa_templates' => true,
-            'tickets' => true,
-            'wallet' => true,
-            'ppob' => true,
-            'settings' => true,
-        ];
-
-        $tehnisi = [
-            'dashboard' => true,
-            'customers' => true,
-            'packages' => false,
-            'invoices' => false,
-            'odps' => true,
-            'olts' => true,
-            'network_map' => true,
-            'device_stocks' => true,
-            'expenses' => false,
-            'financial_reports' => false,
-            'wa_templates' => false,
-            'tickets' => true,
-            'wallet' => false,
-            'ppob' => false,
-            'settings' => false,
-        ];
-
-        foreach ($dashboardCards as $cardPermission) {
-            $admin[$cardPermission] = true;
-            $tehnisi[$cardPermission] = true;
-        }
-
-        return [
-            'admin' => $admin,
-            'tehnisi' => $tehnisi,
-        ];
-    }
-
-    private function mergePermissionsWithDefaults(array $permissions): array
-    {
-        $defaults = $this->defaultPermissionsMap();
-
-        foreach ($defaults as $role => $modules) {
-            foreach ($modules as $module => $defaultValue) {
-                if (!array_key_exists($module, $permissions[$role] ?? [])) {
-                    $permissions[$role][$module] = $defaultValue;
-                }
-            }
-        }
-
-        return $permissions;
-    }
-
-    private function syncRolePermissions(array $matrix): void
-    {
-        $permissionRows = [
-            'dashboard' => ['Dashboard', 'dashboard'],
-            'dashboard_card_pppoe_active' => ['Dashboard: Kartu PPPoE Aktif', 'dashboard'],
-            'dashboard_card_pppoe_offline' => ['Dashboard: Kartu PPPoE Offline', 'dashboard'],
-            'dashboard_card_odp_offline' => ['Dashboard: Kartu ODP Offline', 'dashboard'],
-            'dashboard_card_pppoe_disabled' => ['Dashboard: Kartu PPPoE Disable', 'dashboard'],
-            'dashboard_card_pppoe_isolated' => ['Dashboard: Kartu PPPoE Isolir', 'dashboard'],
-            'dashboard_card_traffic_live' => ['Dashboard: Trafik Jaringan Live', 'dashboard'],
-            'dashboard_card_active_customers' => ['Dashboard: Kartu Pelanggan Aktif', 'dashboard'],
-            'dashboard_card_monthly_target' => ['Dashboard: Kartu Target Bulanan', 'dashboard'],
-            'dashboard_card_collected_revenue' => ['Dashboard: Kartu Dana Terkumpul', 'dashboard'],
-            'dashboard_card_unpaid_amount' => ['Dashboard: Kartu Tertunggak', 'dashboard'],
-            'dashboard_card_collection_progress' => ['Dashboard: Progress Penagihan', 'dashboard'],
-            'dashboard_card_invoice_generator' => ['Dashboard: Pembuatan Tagihan', 'dashboard'],
-            'dashboard_card_recent_payments' => ['Dashboard: Riwayat Pembayaran', 'dashboard'],
-            'customers' => ['Pelanggan', 'billing'],
-            'installation_requests' => ['Calon Pasang', 'billing'],
-            'packages' => ['Paket Layanan', 'billing'],
-            'invoices' => ['Tagihan & Invoice', 'billing'],
-            'odps' => ['Manajemen ODP', 'network'],
-            'olts' => ['Manajemen OLT', 'network'],
-            'network_map' => ['Peta Jaringan', 'network'],
-            'device_stocks' => ['Stok Perangkat', 'inventory'],
-            'expenses' => ['Pengeluaran Kas', 'finance'],
-            'financial_reports' => ['Laporan Keuangan', 'finance'],
-            'wa_templates' => ['Template WA', 'settings'],
-            'tickets' => ['Tiket Bantuan', 'support'],
-            'wallet' => ['Wallet Pelanggan', 'wallet'],
-            'ppob' => ['PPOB', 'ppob'],
-            'settings' => ['Pengaturan', 'settings'],
-        ];
-
-        $permissionIds = collect($permissionRows)->mapWithKeys(function ($meta, $name) {
-            $permission = Permission::updateOrCreate(
-                ['name' => $name],
-                ['label' => $meta[0], 'group' => $meta[1]]
-            );
-
-            return [$name => $permission->id];
-        });
-
-        foreach (['admin', 'tehnisi'] as $roleName) {
-            $role = Role::where('name', $roleName)->first();
-            if (!$role) {
-                continue;
-            }
-
-            $enabledPermissionIds = collect($matrix[$roleName] ?? [])
-                ->filter()
-                ->keys()
-                ->map(fn ($name) => $permissionIds[$name] ?? Permission::where('name', $name)->value('id'))
-                ->filter()
-                ->values()
-                ->all();
-
-            $role->permissions()->sync($enabledPermissionIds);
-        }
-    }
 }

@@ -12,6 +12,12 @@ class Setting extends Model
     protected $fillable = [
         'tenant_id','key', 'value'];
 
+    protected static function booted(): void
+    {
+        static::saved(fn () => \App\Support\Permissions::flush());
+        static::deleted(fn () => \App\Support\Permissions::flush());
+    }
+
     /**
      * Get a setting value by key with fallback.
      */

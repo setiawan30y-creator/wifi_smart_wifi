@@ -25,6 +25,7 @@ return Application::configure(basePath: dirname(__DIR__))
 
         $middleware->alias([
             'api.permission' => \App\Http\Middleware\EnsureApiPermission::class,
+            'tenant.user' => \App\Http\Middleware\SetTenantFromUser::class,
         ]);
         
         $middleware->validateCsrfTokens(except: [

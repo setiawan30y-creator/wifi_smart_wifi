@@ -17,7 +17,7 @@ use App\Http\Controllers\Api\V1\WalletController as ApiWalletController;
 
 Route::get('/user', function (Request $request) {
     return $request->user();
-})->middleware('auth:sanctum');
+})->middleware(['auth:sanctum', 'tenant.user']);
 
 // MikroTik Webhook for Client Status
 Route::any('/mikrotik/client-status', [\App\Http\Controllers\MikrotikWebhookController::class, 'clientStatus']);
@@ -25,7 +25,7 @@ Route::any('/mikrotik/client-status', [\App\Http\Controllers\MikrotikWebhookCont
 Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::post('auth/login', [ApiAuthController::class, 'login'])->middleware('throttle:10,1');
 
-    Route::middleware(['auth:sanctum'])->group(function () {
+    Route::middleware(['auth:sanctum', 'tenant.user'])->group(function () {
         Route::get('auth/me', [ApiAuthController::class, 'me']);
         Route::post('auth/logout', [ApiAuthController::class, 'logout']);
 
