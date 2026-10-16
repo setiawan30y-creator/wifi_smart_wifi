@@ -123,11 +123,9 @@ class Customer extends Model
     protected static function booted()
     {
         static::saving(function ($customer) {
-            if ($customer->maps_link) {
-                if (preg_match('/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/', $customer->maps_link, $matches)) {
-                    $customer->latitude = (float) $matches[1];
-                    $customer->longitude = (float) $matches[2];
-                }
+            if ($customer->maps_link && ($coords = \App\Support\MapsCoordinates::fromText($customer->maps_link))) {
+                $customer->latitude = $coords['lat'];
+                $customer->longitude = $coords['lng'];
             }
         });
 

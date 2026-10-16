@@ -35,11 +35,9 @@ class Odp extends Model
     protected static function booted()
     {
         static::saving(function ($odp) {
-            if ($odp->maps_link) {
-                if (preg_match('/(-?\d+\.\d+)\s*,\s*(-?\d+\.\d+)/', $odp->maps_link, $matches)) {
-                    $odp->latitude = (float) $matches[1];
-                    $odp->longitude = (float) $matches[2];
-                }
+            if ($odp->maps_link && ($coords = \App\Support\MapsCoordinates::fromText($odp->maps_link))) {
+                $odp->latitude = $coords['lat'];
+                $odp->longitude = $coords['lng'];
             }
         });
     }

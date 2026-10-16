@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\MapsCoordinates;
 use App\Models\Customer;
 use App\Models\InstallationRequest;
 use App\Models\Odp;
@@ -46,7 +47,7 @@ class InstallationRequestController extends Controller
         $data = $this->validateRequest($request);
         $data['created_by'] = auth()->id();
         $data['status'] = $data['status'] ?? InstallationRequest::STATUS_NEW;
-        $data = $this->extractCoordinates($data);
+        $data = MapsCoordinates::apply($data);
 
         InstallationRequest::create($data);
 
@@ -56,7 +57,7 @@ class InstallationRequestController extends Controller
     public function update(Request $request, InstallationRequest $installationRequest)
     {
         $data = $this->validateRequest($request, true);
-        $data = $this->extractCoordinates($data);
+        $data = MapsCoordinates::apply($data);
 
         $installationRequest->update($data);
 
@@ -154,19 +155,4 @@ class InstallationRequestController extends Controller
         ]);
     }
 
-    private function extractCoordinates(array $data): array
-    {
-        if (empty($data['maps_link'])) {
-            return $data;
-        }
-
-        if (preg_match('/@(-?\d+\.\d+),(-?\d+\.\d+)/', $data['maps_link'], $matches)
-            || preg_match('/q=(-?\d+\.\d+),(-?\d+\.\d+)/', $data['maps_link'], $matches)
-            || preg_match('/^(-?\d+\.\d+)(?:\s*,\s*|\s+)(-?\d+\.\d+)$/', trim($data['maps_link']), $matches)) {
-            $data['latitude'] = $matches[1];
-            $data['longitude'] = $matches[2];
-        }
-
-        return $data;
-    }
 }

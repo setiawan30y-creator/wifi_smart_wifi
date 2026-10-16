@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\MapsCoordinates;
 use App\Models\Customer;
 
 class CustomerService
@@ -20,7 +21,7 @@ class CustomerService
     {
         $data['status'] = 'active';
 
-        $data = $this->extractCoordinates($data);
+        $data = MapsCoordinates::apply($data);
 
         $photoFields = ['foto_ktp', 'foto_rumah', 'foto_perangkat', 'foto_odp'];
         foreach ($photoFields as $field) {
@@ -37,7 +38,7 @@ class CustomerService
      */
     public function updateCustomer(Customer $customer, array $data, array $files = []): Customer
     {
-        $data = $this->extractCoordinates($data);
+        $data = MapsCoordinates::apply($data);
 
         $photoFields = ['foto_ktp', 'foto_rumah', 'foto_perangkat', 'foto_odp'];
         foreach ($photoFields as $field) {
@@ -50,37 +51,29 @@ class CustomerService
         return $customer;
     }
 
+
     /**
-     * Extract latitude and longitude from maps_link
+     * Ubah status pelanggan (aktif / nonaktif / isolir / berhenti) dan catat riwayatnya.
      */
-    protected function extractCoordinates(array $data): array
+    public function changeStatus(Customer $customer, string $newStatus, string $action, ?string $reason = null, ?\Illuminate\Support\Carbon $changedAt = null): void
     {
-        if (!empty($data['maps_link'])) {
-            $link = $data['maps_link'];
-            $lat = null;
-            $lng = null;
+        \Illuminate\Support\Facades\DB::transaction(function () use ($customer, $newStatus, $action, $reason, $changedAt) {
+            $oldStatus = $customer->status;
 
-            $patterns = [
-                '/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/',
-                '/(?:q|query|center|ll)=(-?\d+(?:\.\d+)?)(?:%2C|,\+|,|\s+)(-?\d+(?:\.\d+)?)/',
-                '/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/',
-                '/(?:place|dir|search)\/.*?\/?(-?\d+(?:\.\d+)?)(?:%2C|,\+|,|\s+)(-?\d+(?:\.\d+)?)/',
-                '/^(-?\d+(?:\.\d+)?)(?:\s*,\s*|\s+)(-?\d+(?:\.\d+)?)$/',
-            ];
-
-            foreach ($patterns as $pattern) {
-                if (preg_match($pattern, trim($link), $matches)) {
-                    $lat = $matches[1];
-                    $lng = $matches[2];
-                    break;
-                }
+            if ($oldStatus === $newStatus) {
+                return;
             }
 
-            if ($lat && $lng) {
-                $data['latitude'] = $lat;
-                $data['longitude'] = $lng;
-            }
-        }
-        return $data;
+            $customer->update(['status' => $newStatus]);
+
+            $customer->statusHistories()->create([
+                'old_status' => $oldStatus,
+                'new_status' => $newStatus,
+                'action' => $action,
+                'reason' => $reason,
+                'changed_by' => auth()->id(),
+                'changed_at' => $changedAt ?? now(),
+            ]);
+        });
     }
 }

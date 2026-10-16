@@ -89,4 +89,25 @@ class CustomerTest extends TestCase
         $response->assertSee('DATA PELANGGAN');
         $response->assertSee('window.print()');
     }
+
+    public function test_isolate_and_reactivate_record_status_history()
+    {
+        $customer = \App\Models\Customer::create([
+            'name' => 'Pelanggan Status',
+            'phone' => '081277700001',
+            'address' => 'Alamat',
+            'package_id' => \App\Models\Package::create(['name' => 'Paket Status', 'price' => 100000, 'speed' => '5 Mbps'])->id,
+            'billing_day' => 5,
+            'status' => 'active',
+            'status_rumah' => 'milik_sendiri',
+        ]);
+
+        $this->patch(route('customers.isolate', $customer), ['reason' => 'Telat bayar'])->assertRedirect();
+        $this->assertSame('isolated', $customer->fresh()->status);
+
+        $this->patch(route('customers.reactivate', $customer))->assertRedirect();
+        $this->assertSame('active', $customer->fresh()->status);
+
+        $this->assertSame(2, $customer->statusHistories()->count());
+    }
 }

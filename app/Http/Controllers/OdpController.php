@@ -2,6 +2,8 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\MapsCoordinates;
+use App\Support\SafeRedirect;
 use App\Models\Odp;
 use App\Models\DeviceSpecification;
 use App\Models\OdpDevice;
@@ -74,7 +76,7 @@ class OdpController extends Controller
 
         $data = $request->except(['photo_1', 'photo_2', 'photo_3', 'photo_4', 'devices']);
 
-        $data = $this->extractCoordinates($data);
+        $data = MapsCoordinates::apply($data);
 
         for ($i = 1; $i <= 4; $i++) {
             $key = 'photo_' . $i;
@@ -118,7 +120,7 @@ class OdpController extends Controller
             $odp->devices()->create($deviceData);
         }
 
-        $redirectTo = $this->safeRedirectTarget($request->input('redirect_to'), route('odps.index'));
+        $redirectTo = SafeRedirect::to($request->input('redirect_to'), route('odps.index'));
 
         return redirect($redirectTo)->with('success', 'ODP berhasil ditambahkan.');
     }
@@ -134,19 +136,6 @@ class OdpController extends Controller
         $lanSpecs = $deviceSpecs->where('device_type', 'LAN');
         $allOdps = Odp::where('id', '!=', $odp->id)->orderBy('name', 'asc')->get();
         return view('odps.edit', compact('odp', 'foSpecs', 'lanSpecs', 'allOdps'));
-    }
-
-    private function safeRedirectTarget(?string $target, string $fallback): string
-    {
-        if (!$target) {
-            return $fallback;
-        }
-
-        if (str_starts_with($target, '/') || str_starts_with($target, url('/'))) {
-            return $target;
-        }
-
-        return $fallback;
     }
 
     /**
@@ -172,7 +161,7 @@ class OdpController extends Controller
 
         $data = $request->except(['photo_1', 'photo_2', 'photo_3', 'photo_4', 'devices']);
 
-        $data = $this->extractCoordinates($data);
+        $data = MapsCoordinates::apply($data);
 
         for ($i = 1; $i <= 4; $i++) {
             $key = 'photo_' . $i;
@@ -320,134 +309,35 @@ class OdpController extends Controller
         return [$foPorts, $lanPorts];
     }
 
+
     /**
-     * Extract latitude and longitude from maps_link
+     * Tombol "Ekstrak" koordinat dari link Google Maps (termasuk link pendek maps.app.goo.gl).
      */
-    protected function extractCoordinates(array $data): array
+    public function extractCoordinatesApi(Request $request)
     {
-        if (!empty($data['maps_link'])) {
-            $link = $data['maps_link'];
-            $lat = null;
-            $lng = null;
+        $link = trim((string) $request->input('link'));
 
-            $decodedLink = urldecode($link);
-            $patterns = [
-                '/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/',
-                '/(?:q|query|center|ll)=(-?\d+(?:\.\d+)?)(?:%2C|,\+|,|\s+)(-?\d+(?:\.\d+)?)/',
-                '/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/',
-                '/(?:place|dir|search)\/.*?\/?(-?\d+(?:\.\d+)?)(?:%2C|,\+|,|\s+)(-?\d+(?:\.\d+)?)/',
-                '/[?&](?:destination|saddr|daddr)=(-?\d+(?:\.\d+)?)(?:%2C|,\+|,|\s+)(-?\d+(?:\.\d+)?)/',
-                '/^(-?\d+(?:\.\d+)?)(?:\s*,\s*|\s+)(-?\d+(?:\.\d+)?)$/',
-                '/(-?\d{1,2}\.\d{4,})\s*,\s*(-?\d{2,3}\.\d{4,})/',
-            ];
-
-            foreach ($patterns as $pattern) {
-                if (preg_match($pattern, $decodedLink, $matches) || preg_match($pattern, trim($link), $matches)) {
-                    $latCandidate = (float) $matches[1];
-                    $lngCandidate = (float) $matches[2];
-
-                    if ($latCandidate >= -90 && $latCandidate <= 90 && $lngCandidate >= -180 && $lngCandidate <= 180) {
-                        $lat = $matches[1];
-                        $lng = $matches[2];
-                        break;
-                    }
-                }
-            }
-
-            if ($lat && $lng) {
-                $data['latitude'] = $lat;
-                $data['longitude'] = $lng;
-            }
-        }
-        return $data;
-    }
-    public function extractCoordinatesApi(\Illuminate\Http\Request $request)
-    {
-        $link = $request->input('link');
-        if (!$link) return response()->json(['success' => false]);
-
-        $lat = null;
-        $lng = null;
-
-        // Helper function to extract from a string (url or html body)
-        $extract = function($text) use (&$lat, &$lng) {
-            $decoded = urldecode((string) $text);
-            $patterns = [
-                '/@(-?\d+(?:\.\d+)?),(-?\d+(?:\.\d+)?)/',
-                '/(?:q|query|center|ll)=(-?\d+(?:\.\d+)?)(?:%2C|,\+|,|\s+)(-?\d+(?:\.\d+)?)/',
-                '/!3d(-?\d+(?:\.\d+)?)!4d(-?\d+(?:\.\d+)?)/',
-                '/(?:place|dir|search)\/.*?\/?(-?\d+(?:\.\d+)?)(?:%2C|,\+|,|\s+)(-?\d+(?:\.\d+)?)/',
-                '/[?&](?:destination|saddr|daddr)=(-?\d+(?:\.\d+)?)(?:%2C|,\+|,|\s+)(-?\d+(?:\.\d+)?)/',
-                '/^(-?\d+(?:\.\d+)?)(?:\s*,\s*|\s+)(-?\d+(?:\.\d+)?)$/',
-                '/(-?\d{1,2}\.\d{4,})\s*,\s*(-?\d{2,3}\.\d{4,})/',
-            ];
-
-            foreach ($patterns as $pattern) {
-                if (preg_match($pattern, $decoded, $matches) || preg_match($pattern, (string) $text, $matches)) {
-                    $latCandidate = (float) $matches[1];
-                    $lngCandidate = (float) $matches[2];
-
-                    if ($latCandidate >= -90 && $latCandidate <= 90 && $lngCandidate >= -180 && $lngCandidate <= 180) {
-                        $lat = $matches[1];
-                        $lng = $matches[2];
-                        return true;
-                    }
-                }
-            }
-
-            return false;
-        };
-
-        // 1. Try to extract from the raw input link FIRST!
-        if ($extract($link)) {
-            return response()->json(['success' => true, 'lat' => $lat, 'lng' => $lng, 'resolved_url' => $link]);
+        if ($link === '') {
+            return response()->json(['success' => false, 'message' => 'Link Maps kosong']);
         }
 
-        // 2. If no coordinates found (e.g. shortlink), try to resolve it via cURL
-        if (strpos($link, 'goo.gl') !== false || strpos($link, 'maps.app.goo.gl') !== false || strpos($link, 'maps.google.com') !== false) {
-            if (!function_exists('curl_init')) {
-                return response()->json([
-                    'success' => false,
-                    'message' => 'PHP cURL belum aktif',
-                ]);
-            }
+        try {
+            $result = MapsCoordinates::resolve($link);
+        } catch (\Throwable $exception) {
+            report($exception);
 
-            try {
-                $ch = curl_init($link);
-                curl_setopt($ch, CURLOPT_HEADER, true);
-                curl_setopt($ch, CURLOPT_NOBODY, false);
-                curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
-                curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-                curl_setopt($ch, CURLOPT_MAXREDIRS, 5);
-                curl_setopt($ch, CURLOPT_USERAGENT, 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36');
-                curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, false);
-                curl_setopt($ch, CURLOPT_TIMEOUT, 15);
-                $result = curl_exec($ch);
-                $finalUrl = curl_getinfo($ch, CURLINFO_EFFECTIVE_URL);
-                curl_close($ch);
-                
-                // 3. Try parsing the final URL
-                if ($finalUrl && $extract($finalUrl)) {
-                    return response()->json(['success' => true, 'lat' => $lat, 'lng' => $lng, 'resolved_url' => $finalUrl]);
-                }
-                
-                // 4. Try parsing the HTML body if Google blocked the redirect but sent an HTML page
-                if ($result && $extract($result)) {
-                    return response()->json(['success' => true, 'lat' => $lat, 'lng' => $lng, 'resolved_url' => $finalUrl]);
-                }
-            } catch (\Throwable $exception) {
-                report($exception);
+            return response()->json(['success' => false, 'message' => 'Gagal akses link Maps']);
+        }
 
-                return response()->json([
-                    'success' => false,
-                    'message' => 'Gagal akses link Maps',
-                ]);
-            }
+        if (!$result) {
+            return response()->json(['success' => false, 'message' => 'Koordinat tidak ditemukan']);
         }
 
         return response()->json([
-            'success' => false,
-            'message' => 'Koordinat tidak ditemukan',
+            'success' => true,
+            'lat' => $result['lat'],
+            'lng' => $result['lng'],
+            'resolved_url' => $result['resolved_url'],
         ]);
     }
 }

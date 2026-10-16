@@ -2,6 +2,7 @@
 
 namespace App\Services;
 
+use App\Support\MapsCoordinates;
 use App\Contracts\Repositories\OdpRepositoryInterface;
 use App\Models\Odp;
 use Illuminate\Http\UploadedFile;
@@ -58,7 +59,7 @@ class OdpService
         $devices = $data['devices'] ?? [];
         unset($data['devices']);
 
-        $data = $this->extractCoordinates($data);
+        $data = MapsCoordinates::apply($data);
         $data = $this->handlePhotos($data, $files, $existingOdp);
 
         $totalFo = 0;
@@ -137,35 +138,4 @@ class OdpService
         return [$foPorts, $lanPorts];
     }
 
-    public function extractCoordinates(array $data): array
-    {
-        if (empty($data['maps_link'])) {
-            return $data;
-        }
-
-        $link = $data['maps_link'];
-        $lat = null;
-        $lng = null;
-
-        if (preg_match('/@(-?\d+\.\d+),(-?\d+\.\d+)/', $link, $matches)) {
-            $lat = $matches[1];
-            $lng = $matches[2];
-        } elseif (preg_match('/q=(-?\d+\.\d+),(-?\d+\.\d+)/', $link, $matches)) {
-            $lat = $matches[1];
-            $lng = $matches[2];
-        } elseif (preg_match('/^(-?\d+\.\d+)(?:\s*,\s*|\s+)(-?\d+\.\d+)$/', trim($link), $matches)) {
-            $lat = $matches[1];
-            $lng = $matches[2];
-        } elseif (preg_match('/search\/(-?\d+\.\d+)(?:%2C|,\+|,|\s+)(-?\d+\.\d+)/', $link, $matches)) {
-            $lat = $matches[1];
-            $lng = $matches[2];
-        }
-
-        if ($lat && $lng) {
-            $data['latitude'] = $lat;
-            $data['longitude'] = $lng;
-        }
-
-        return $data;
-    }
 }
