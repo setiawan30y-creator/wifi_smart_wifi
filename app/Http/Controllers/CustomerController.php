@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\SpreadsheetReader;
 use App\Models\Customer;
 use App\Models\Package;
 use App\Models\Odp;
@@ -380,11 +381,11 @@ class CustomerController extends Controller
         $rows = [];
 
         if (in_array($extension, ['csv', 'txt'])) {
-            $rows = $this->readCsvRows($file->getRealPath());
+            $rows = SpreadsheetReader::csv($file->getRealPath());
         } elseif ($extension === 'xls') {
-            $rows = $this->readSpreadsheetMlRows($file->getRealPath());
+            $rows = SpreadsheetReader::spreadsheetMl($file->getRealPath());
         } elseif ($extension === 'xlsx') {
-            $rows = $this->readXlsxRows($file->getRealPath());
+            $rows = SpreadsheetReader::xlsx($file->getRealPath());
         }
 
         if (empty($rows)) {
@@ -751,204 +752,5 @@ class CustomerController extends Controller
         } catch (\Throwable) {
             return null;
         }
-    }
-
-    private function readCsvRows(string $path): array
-    {
-        $rows = [];
-        $handle = fopen($path, 'r');
-        $firstLine = fgets($handle) ?: '';
-        rewind($handle);
-
-        $delimiter = substr_count($firstLine, ';') > substr_count($firstLine, ',') ? ';' : ',';
-
-        while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
-            $rows[] = $row;
-        }
-
-        fclose($handle);
-
-        return $rows;
-    }
-
-    private function readSpreadsheetMlRows(string $path): array
-    {
-        $rows = [];
-        $content = file_get_contents($path);
-        $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
-
-        try {
-            $xml = @simplexml_load_string($content, 'SimpleXMLElement', LIBXML_NOERROR | LIBXML_NOWARNING);
-            if (!$xml) {
-                return [];
-            }
-
-            $xml->registerXPathNamespace('ss', 'urn:schemas-microsoft-com:office:spreadsheet');
-            $xmlRows = $xml->xpath('//ss:Row') ?: [];
-
-            foreach ($xmlRows as $xmlRow) {
-                $cells = [];
-                $currentIndex = 1;
-
-                foreach ($xmlRow->children('urn:schemas-microsoft-com:office:spreadsheet')->Cell as $cell) {
-                    $attributes = $cell->attributes('urn:schemas-microsoft-com:office:spreadsheet');
-                    if (isset($attributes['Index'])) {
-                        $currentIndex = (int) $attributes['Index'];
-                    }
-
-                    while (count($cells) < $currentIndex - 1) {
-                        $cells[] = '';
-                    }
-
-                    $data = $cell->children('urn:schemas-microsoft-com:office:spreadsheet')->Data;
-                    $cells[] = (string) $data;
-                    $currentIndex++;
-                }
-
-                $rows[] = $cells;
-            }
-        } catch (\Throwable) {
-            return [];
-        }
-
-        return $rows;
-    }
-
-    private function readXlsxRows(string $path): array
-    {
-        if (!class_exists(\ZipArchive::class)) {
-            return [];
-        }
-
-        $zip = new \ZipArchive();
-        if ($zip->open($path) !== true) {
-            return [];
-        }
-
-        $sharedStrings = $this->readXlsxSharedStrings($zip);
-        $sheetPath = $this->firstXlsxSheetPath($zip);
-        $sheetXml = $sheetPath ? $zip->getFromName($sheetPath) : false;
-
-        if ($sheetXml === false) {
-            $zip->close();
-            return [];
-        }
-
-        $xml = @simplexml_load_string($sheetXml, 'SimpleXMLElement', LIBXML_NOERROR | LIBXML_NOWARNING);
-        if (!$xml) {
-            $zip->close();
-            return [];
-        }
-
-        $xml->registerXPathNamespace('main', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
-        $xmlRows = $xml->xpath('//main:sheetData/main:row') ?: [];
-        $rows = [];
-
-        foreach ($xmlRows as $xmlRow) {
-            $cells = [];
-            foreach ($xmlRow->children('http://schemas.openxmlformats.org/spreadsheetml/2006/main')->c as $cell) {
-                $attributes = $cell->attributes();
-                $cellRef = (string) ($attributes['r'] ?? '');
-                $type = (string) ($attributes['t'] ?? '');
-                $columnIndex = $cellRef ? $this->xlsxColumnIndex($cellRef) : count($cells);
-
-                while (count($cells) < $columnIndex) {
-                    $cells[] = '';
-                }
-
-                $value = '';
-                if ($type === 's') {
-                    $index = (int) ($cell->v ?? 0);
-                    $value = $sharedStrings[$index] ?? '';
-                } elseif ($type === 'inlineStr') {
-                    $value = (string) ($cell->is->t ?? '');
-                } else {
-                    $value = (string) ($cell->v ?? '');
-                }
-
-                $cells[$columnIndex] = $value;
-            }
-
-            $rows[] = $cells;
-        }
-
-        $zip->close();
-
-        return $rows;
-    }
-
-    private function readXlsxSharedStrings(\ZipArchive $zip): array
-    {
-        $content = $zip->getFromName('xl/sharedStrings.xml');
-        if ($content === false) {
-            return [];
-        }
-
-        $xml = @simplexml_load_string($content, 'SimpleXMLElement', LIBXML_NOERROR | LIBXML_NOWARNING);
-        if (!$xml) {
-            return [];
-        }
-
-        $strings = [];
-        foreach ($xml->children('http://schemas.openxmlformats.org/spreadsheetml/2006/main')->si as $si) {
-            $parts = [];
-            foreach ($si->xpath('.//*[local-name()="t"]') ?: [] as $text) {
-                $parts[] = (string) $text;
-            }
-            $strings[] = implode('', $parts);
-        }
-
-        return $strings;
-    }
-
-    private function firstXlsxSheetPath(\ZipArchive $zip): ?string
-    {
-        $workbook = $zip->getFromName('xl/workbook.xml');
-        $rels = $zip->getFromName('xl/_rels/workbook.xml.rels');
-
-        if ($workbook === false || $rels === false) {
-            return $zip->locateName('xl/worksheets/sheet1.xml') !== false ? 'xl/worksheets/sheet1.xml' : null;
-        }
-
-        $workbookXml = @simplexml_load_string($workbook, 'SimpleXMLElement', LIBXML_NOERROR | LIBXML_NOWARNING);
-        $relsXml = @simplexml_load_string($rels, 'SimpleXMLElement', LIBXML_NOERROR | LIBXML_NOWARNING);
-
-        if (!$workbookXml || !$relsXml) {
-            return null;
-        }
-
-        $workbookXml->registerXPathNamespace('main', 'http://schemas.openxmlformats.org/spreadsheetml/2006/main');
-        $workbookXml->registerXPathNamespace('r', 'http://schemas.openxmlformats.org/officeDocument/2006/relationships');
-        $sheets = $workbookXml->xpath('//main:sheets/main:sheet') ?: [];
-
-        if (empty($sheets)) {
-            return null;
-        }
-
-        $sheetAttributes = $sheets[0]->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships');
-        $relationshipId = (string) ($sheetAttributes['id'] ?? '');
-
-        foreach ($relsXml->Relationship as $relationship) {
-            $attributes = $relationship->attributes();
-            if ((string) $attributes['Id'] === $relationshipId) {
-                $target = ltrim((string) $attributes['Target'], '/');
-                return str_starts_with($target, 'xl/') ? $target : 'xl/' . $target;
-            }
-        }
-
-        return null;
-    }
-
-    private function xlsxColumnIndex(string $cellRef): int
-    {
-        preg_match('/^([A-Z]+)/i', $cellRef, $matches);
-        $letters = strtoupper($matches[1] ?? 'A');
-        $index = 0;
-
-        for ($i = 0; $i < strlen($letters); $i++) {
-            $index = ($index * 26) + (ord($letters[$i]) - 64);
-        }
-
-        return max(0, $index - 1);
     }
 }

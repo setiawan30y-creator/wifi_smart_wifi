@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Support\SpreadsheetReader;
 use App\Models\Invoice;
 use App\Models\Customer;
 use App\Models\WaTemplate;
@@ -753,9 +754,16 @@ class InvoiceController extends Controller
      */
     public function import(Request $request)
     {
+        // Catatan: file .xls hasil export sistem berformat XML, sehingga aturan "mimes:xls"
+        // selalu menolaknya. Ekstensi diperiksa manual (sama seperti import pelanggan).
         $request->validate([
-            'import_file' => 'required|file|mimes:csv,txt,xls,xlsx|max:5120',
+            'import_file' => 'required|file|max:5120',
         ]);
+
+        if (!in_array(strtolower($request->file('import_file')->getClientOriginalExtension()), ['csv', 'txt', 'xls', 'xlsx'], true)) {
+            return redirect()->route('invoices.index')
+                ->with('error', 'Format file tidak didukung. Gunakan file .xlsx, .xls, .csv, atau .txt.');
+        }
 
         $monthMap = [
             'januari'=>1,'februari'=>2,'maret'=>3,'april'=>4,
@@ -767,44 +775,19 @@ class InvoiceController extends Controller
         $extension = strtolower($file->getClientOriginalExtension());
         $rows      = [];
 
-        if (in_array($extension, ['csv', 'txt'])) {
-            $handle = fopen($file->getRealPath(), 'r');
-            // Try to detect delimiter
-            $firstLine = fgets($handle);
-            rewind($handle);
-            $delimiter = (substr_count($firstLine, ';') > substr_count($firstLine, ',')) ? ';' : ',';
-            while (($row = fgetcsv($handle, 0, $delimiter)) !== false) {
-                $rows[] = $row;
-            }
-            fclose($handle);
-        } elseif ($extension === 'xls') {
-            $content = file_get_contents($file->getRealPath());
-            $content = preg_replace('/^\xEF\xBB\xBF/', '', $content);
+        if ($extension === 'xlsx') {
             try {
-                $xml = @simplexml_load_string($content, 'SimpleXMLElement', LIBXML_NOERROR | LIBXML_NOWARNING);
-                if ($xml) {
-                    $xml->registerXPathNamespace('ss', 'urn:schemas-microsoft-com:office:spreadsheet');
-                    $xmlRows = $xml->xpath('//ss:Row');
-                    foreach ($xmlRows as $xmlRow) {
-                        $cells = [];
-                        foreach ($xmlRow->children('urn:schemas-microsoft-com:office:spreadsheet')->Cell as $cell) {
-                            $data    = $cell->children('urn:schemas-microsoft-com:office:spreadsheet')->Data;
-                            $cells[] = (string) $data;
-                        }
-                        $rows[] = $cells;
-                    }
-                }
-            } catch (\Exception $e) {
-                return redirect()->route('invoices.index')
-                    ->with('error', 'Format file XLS tidak valid. Gunakan file yang diekspor dari sistem ini atau CSV.');
-            }
-        } elseif ($extension === 'xlsx') {
-            try {
-                $rows = $this->readXlsxRows($file->getRealPath());
+                // Untuk XLSX: nilai sel di-trim dan baris tanpa sel dilewati (perilaku lama import invoice).
+                $rows = array_values(array_filter(
+                    array_map(fn ($row) => array_map('trim', $row), SpreadsheetReader::xlsx($file->getRealPath())),
+                    fn ($row) => $row !== []
+                ));
             } catch (\Throwable $e) {
                 return redirect()->route('invoices.index')
                     ->with('error', 'Format file XLSX tidak valid atau tidak bisa dibaca. Simpan ulang file dari Excel lalu coba lagi.');
             }
+        } else {
+            $rows = SpreadsheetReader::read($file->getRealPath(), $extension);
         }
 
         if (empty($rows)) {
@@ -1129,135 +1112,5 @@ class InvoiceController extends Controller
             ['January', 'February', 'March', 'May', 'June', 'July', 'August', 'October', 'December'],
             $value
         );
-    }
-
-    private function readXlsxRows(string $path): array
-    {
-        $zip = new \ZipArchive();
-        if ($zip->open($path) !== true) {
-            return [];
-        }
-
-        try {
-            $sharedStrings = $this->readXlsxSharedStrings($zip);
-            $sheetPath = $this->resolveFirstXlsxSheetPath($zip);
-            $sheetXml = $zip->getFromName($sheetPath);
-
-            if ($sheetXml === false) {
-                return [];
-            }
-
-            $sheet = @simplexml_load_string($sheetXml, 'SimpleXMLElement', LIBXML_NOERROR | LIBXML_NOWARNING);
-            if (!$sheet || !isset($sheet->sheetData->row)) {
-                return [];
-            }
-
-            $rows = [];
-            foreach ($sheet->sheetData->row as $xmlRow) {
-                $cells = [];
-                foreach ($xmlRow->c as $cell) {
-                    $reference = (string) ($cell['r'] ?? '');
-                    $columnIndex = $reference ? $this->xlsxColumnIndex($reference) : count($cells);
-                    $cells[$columnIndex] = $this->xlsxCellValue($cell, $sharedStrings);
-                }
-
-                if (!empty($cells)) {
-                    ksort($cells);
-                    $maxIndex = max(array_keys($cells));
-                    $row = [];
-                    for ($i = 0; $i <= $maxIndex; $i++) {
-                        $row[] = $cells[$i] ?? '';
-                    }
-                    $rows[] = $row;
-                }
-            }
-
-            return $rows;
-        } finally {
-            $zip->close();
-        }
-    }
-
-    private function readXlsxSharedStrings(\ZipArchive $zip): array
-    {
-        $xml = $zip->getFromName('xl/sharedStrings.xml');
-        if ($xml === false) {
-            return [];
-        }
-
-        $strings = @simplexml_load_string($xml, 'SimpleXMLElement', LIBXML_NOERROR | LIBXML_NOWARNING);
-        if (!$strings) {
-            return [];
-        }
-
-        $values = [];
-        foreach ($strings->si as $item) {
-            if (isset($item->t)) {
-                $values[] = (string) $item->t;
-                continue;
-            }
-
-            $text = '';
-            foreach ($item->r as $run) {
-                $text .= (string) $run->t;
-            }
-            $values[] = $text;
-        }
-
-        return $values;
-    }
-
-    private function resolveFirstXlsxSheetPath(\ZipArchive $zip): string
-    {
-        $workbookXml = $zip->getFromName('xl/workbook.xml');
-        $relsXml = $zip->getFromName('xl/_rels/workbook.xml.rels');
-
-        if ($workbookXml !== false && $relsXml !== false) {
-            $workbook = @simplexml_load_string($workbookXml, 'SimpleXMLElement', LIBXML_NOERROR | LIBXML_NOWARNING);
-            $rels = @simplexml_load_string($relsXml, 'SimpleXMLElement', LIBXML_NOERROR | LIBXML_NOWARNING);
-
-            if ($workbook && $rels && isset($workbook->sheets->sheet[0])) {
-                $attributes = $workbook->sheets->sheet[0]->attributes('http://schemas.openxmlformats.org/officeDocument/2006/relationships');
-                $relationId = (string) ($attributes['id'] ?? '');
-
-                foreach ($rels->Relationship as $relationship) {
-                    if ((string) $relationship['Id'] === $relationId) {
-                        $target = ltrim((string) $relationship['Target'], '/');
-                        return str_starts_with($target, 'xl/') ? $target : 'xl/' . $target;
-                    }
-                }
-            }
-        }
-
-        return 'xl/worksheets/sheet1.xml';
-    }
-
-    private function xlsxCellValue(\SimpleXMLElement $cell, array $sharedStrings): string
-    {
-        $type = (string) ($cell['t'] ?? '');
-
-        if ($type === 's') {
-            $index = (int) ($cell->v ?? 0);
-            return trim((string) ($sharedStrings[$index] ?? ''));
-        }
-
-        if ($type === 'inlineStr') {
-            return trim((string) ($cell->is->t ?? ''));
-        }
-
-        return trim((string) ($cell->v ?? ''));
-    }
-
-    private function xlsxColumnIndex(string $cellReference): int
-    {
-        preg_match('/^[A-Z]+/i', $cellReference, $matches);
-        $letters = strtoupper($matches[0] ?? 'A');
-        $index = 0;
-
-        for ($i = 0; $i < strlen($letters); $i++) {
-            $index = ($index * 26) + (ord($letters[$i]) - 64);
-        }
-
-        return $index - 1;
     }
 }
