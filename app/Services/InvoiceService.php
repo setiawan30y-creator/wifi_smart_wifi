@@ -6,17 +6,19 @@ use App\Support\Phone;
 use App\Models\Invoice;
 use App\Models\Customer;
 use App\Models\Setting;
+use App\Services\Billing\BillingMessages;
+use App\Services\Billing\DueDate;
+use App\Services\Billing\InvoiceGenerator;
 use App\Services\WhatsAppGateway;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 
 class InvoiceService
 {
-    protected FileUploadService $fileUploadService;
-
-    public function __construct(FileUploadService $fileUploadService)
-    {
-        $this->fileUploadService = $fileUploadService;
+    public function __construct(
+        protected FileUploadService $fileUploadService,
+        protected InvoiceGenerator $generator,
+    ) {
     }
 
     /**
@@ -302,17 +304,6 @@ class InvoiceService
     {
         $periodEnd = Carbon::create($year, $month, 1)->endOfMonth();
 
-        $activeCustomers = Customer::whereRaw('LOWER(TRIM(status)) = ?', ['active'])
-            ->where(function ($query) {
-                $query->whereNull('billing_type')
-                    ->orWhere('billing_type', Customer::BILLING_PAID);
-            })
-            ->where(function ($query) {
-                $query->whereNull('billing_mode')
-                    ->orWhere('billing_mode', Customer::MODE_POSTPAID);
-            })
-            ->with('package')
-            ->get();
         $inactiveCount = Customer::whereRaw('LOWER(TRIM(status)) <> ?', ['active'])->count();
         $freeCount = Customer::whereRaw('LOWER(TRIM(status)) = ?', ['active'])
             ->whereNotNull('billing_type')
@@ -324,40 +315,15 @@ class InvoiceService
         $futureCustomerCount = 0;
         $createdInvoices = collect();
 
-        foreach ($activeCustomers as $customer) {
-            $billingStartDate = $customer->tanggal_pasang
-                ? Carbon::parse($customer->tanggal_pasang)
-                : ($customer->created_at ? $customer->created_at->copy() : null);
+        foreach ($this->generator->billableCustomers()->get() as $customer) {
+            [$result, $invoice] = $this->generator->generate($customer, $month, $year, $periodEnd);
 
-            if ($billingStartDate && $billingStartDate->startOfDay()->greaterThan($periodEnd)) {
-                $futureCustomerCount++;
-                continue;
-            }
-
-            if (!$customer->package) {
-                $withoutPackageCount++;
-                continue;
-            }
-
-            $exists = Invoice::where('customer_id', $customer->id)
-                ->where('month', $month)
-                ->where('year', $year)
-                ->exists();
-
-            if (!$exists) {
-                $invoice = Invoice::create([
-                    'customer_id' => $customer->id,
-                    'month'       => $month,
-                    'year'        => $year,
-                    'amount'      => $customer->package->price,
-                    'status'      => 'unpaid',
-                ]);
-                $invoice->setRelation('customer', $customer);
-                $createdInvoices->push($invoice);
-                $createdCount++;
-            } else {
-                $skippedCount++;
-            }
+            match ($result) {
+                InvoiceGenerator::CREATED => [$createdCount++, $createdInvoices->push($invoice)],
+                InvoiceGenerator::EXISTS => $skippedCount++,
+                InvoiceGenerator::NO_PACKAGE => $withoutPackageCount++,
+                InvoiceGenerator::NOT_STARTED => $futureCustomerCount++,
+            };
         }
 
         $monthNames = [
@@ -434,10 +400,8 @@ class InvoiceService
                 continue;
             }
 
-            $periodDate = Carbon::create((int) $invoice->year, (int) $invoice->month, 1);
-            $billingDay = max(1, min((int) ($customer->billing_day ?: 1), $periodDate->daysInMonth));
-            $dueDate = $periodDate->copy()->day($billingDay);
-            $message = $this->renderGeneratedInvoiceMessage($templateContent, $customer, $invoice, $dueDate);
+            $dueDate = DueDate::for($customer, (int) $invoice->month, (int) $invoice->year);
+            $message = BillingMessages::invoice($templateContent, $customer, $invoice, $dueDate);
             $result = $gateway->send($customer->phone, $message);
 
             ($result['success'] ?? false) ? $sent++ : $failed++;
@@ -450,25 +414,5 @@ class InvoiceService
         return compact('sent', 'failed', 'skipped');
     }
 
-    private function renderGeneratedInvoiceMessage(?string $templateContent, Customer $customer, Invoice $invoice, Carbon $dueDate): string
-    {
-        $monthName = $dueDate->translatedFormat('F');
-        $message = filled($templateContent) ? $templateContent : "Halo {nama_pelanggan},\n\nTagihan internet periode {periode} telah terbit.\nNomor tagihan: {nomor_tagihan}\nJumlah: {nominal}\nJatuh tempo: {tanggal_jatuh_tempo}\n\nTerima kasih.";
-
-        return strtr($message, [
-            '{nama}' => $customer->name,
-            '{nama_pelanggan}' => $customer->name,
-            '{nomor_tagihan}' => $invoice->invoice_number,
-            '{no_invoice}' => $invoice->invoice_number,
-            '{bulan}' => $monthName,
-            '{tahun}' => (string) $invoice->year,
-            '{periode}' => $monthName . ' ' . $invoice->year,
-            '{nominal}' => 'Rp ' . number_format((int) $invoice->amount, 0, ',', '.'),
-            '{jumlah}' => 'Rp ' . number_format((int) $invoice->amount, 0, ',', '.'),
-            '{tanggal_jatuh_tempo}' => $dueDate->translatedFormat('d F Y'),
-            '{nama_odp}' => $customer->odp->name ?? '-',
-            '{odp}' => $customer->odp->name ?? '-',
-        ]);
-    }
 
 }
