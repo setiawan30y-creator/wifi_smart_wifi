@@ -16,7 +16,7 @@ class ImportMikrotikSecrets extends Command
      *
      * @var string
      */
-    protected $signature = 'mikrotik:import-secrets';
+    protected $signature = 'mikrotik:import-secrets {--tenant= : ID tenant pemilik router (wajib)}';
 
     /**
      * The console command description.
@@ -29,6 +29,18 @@ class ImportMikrotikSecrets extends Command
      * Execute the console command.
      */
     public function handle()
+    {
+        $tenantId = (int) $this->option('tenant');
+
+        if (!$tenantId) {
+            $this->error('Sebutkan tenant: --tenant=ID (router & pelanggan milik tenant tersebut).');
+            return self::FAILURE;
+        }
+
+        return app(\App\Support\Tenancy\TenantContext::class)->run($tenantId, fn () => $this->import()) ?? self::SUCCESS;
+    }
+
+    private function import()
     {
         $router = Router::active();
         if (!$router) {

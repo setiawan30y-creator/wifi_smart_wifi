@@ -83,6 +83,47 @@ final class BillingMessages
             . "Mohon melakukan pembayaran sesuai rincian di atas. Terima kasih.";
     }
 
+    public const DEFAULT_ARREARS = "Halo {nama_pelanggan},\n\nKami informasikan masih ada {jumlah_tunggakan} periode tagihan yang belum lunas.\nPeriode: {periode}\nNomor tagihan: {nomor_tagihan}\nTotal tunggakan: {nominal}\nJatuh tempo tertua: {tanggal_jatuh_tempo}\n\nMohon segera melakukan pembayaran. Terima kasih.";
+
+    /**
+     * Pesan tunggakan untuk satu pelanggan dengan beberapa tagihan belum lunas
+     * (urut dari yang tertua). Placeholder tambahan: {jumlah_tunggakan}.
+     */
+    public static function arrears(?string $template, Customer $customer, \Illuminate\Support\Collection $unpaidInvoices): string
+    {
+        $message = trim((string) $template) !== '' ? (string) $template : self::DEFAULT_ARREARS;
+        $oldest = $unpaidInvoices->first();
+        $numbers = $unpaidInvoices->pluck('invoice_number')->implode(', ');
+        $periods = $unpaidInvoices
+            ->map(fn ($invoice) => self::monthName((int) $invoice->month) . ' ' . $invoice->year)
+            ->implode(', ');
+        $total = self::rupiah((int) $unpaidInvoices->sum('amount'));
+        $odpName = $customer->odp?->name ?? '-';
+
+        return strtr($message, [
+            '{nama}' => $customer->name,
+            '{nama_pelanggan}' => $customer->name,
+            '{nomor_tagihan}' => $numbers,
+            '{no_invoice}' => $numbers,
+            '{periode}' => $periods,
+            '{bulan}' => $periods,
+            '{nominal}' => $total,
+            '{jumlah}' => $total,
+            '{jumlah_tunggakan}' => (string) $unpaidInvoices->count(),
+            '{tanggal_jatuh_tempo}' => $oldest ? DueDate::for($customer, (int) $oldest->month, (int) $oldest->year)->translatedFormat('d F Y') : '-',
+            '{nama_odp}' => $odpName,
+            '{odp}' => $odpName,
+        ]);
+    }
+
+    public static function monthName(int $month): string
+    {
+        return [
+            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April', 5 => 'Mei', 6 => 'Juni',
+            7 => 'Juli', 8 => 'Agustus', 9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
+        ][$month] ?? (string) $month;
+    }
+
     public static function rupiah(int $amount): string
     {
         return 'Rp ' . number_format($amount, 0, ',', '.');

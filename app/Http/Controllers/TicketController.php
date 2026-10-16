@@ -8,7 +8,6 @@ use App\Models\Ticket;
 use App\Models\TicketReply;
 use App\Models\User;
 use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Validation\Rule;
 
@@ -266,35 +265,29 @@ class TicketController extends Controller
     private function notifyAdmin(string $message): void
     {
         $adminWa = Setting::get('admin_whatsapp');
-        $fonnteToken = Setting::get('fonnte_token');
 
-        if ($adminWa && $fonnteToken) {
-            $this->sendFonnte($adminWa, $message, $fonnteToken);
+        if ($adminWa) {
+            $this->sendWhatsApp($adminWa, $message);
         }
     }
 
     private function notifyClient(?User $client, string $message): void
     {
-        $phone = $client?->phone;
-        $fonnteToken = Setting::get('fonnte_token');
-
-        if ($phone && $fonnteToken) {
-            $this->sendFonnte($phone, $message, $fonnteToken);
+        if ($client?->phone) {
+            $this->sendWhatsApp($client->phone, $message);
         }
     }
 
-    private function sendFonnte(string $target, string $message, string $token): void
+    /**
+     * Notifikasi tiket lewat WA Gateway tenant (lihat App\Services\WhatsAppGateway).
+     * Kegagalan kirim hanya dicatat di log; tiket tetap tersimpan.
+     */
+    private function sendWhatsApp(string $target, string $message): void
     {
-        try {
-            Http::withHeaders([
-                'Authorization' => $token,
-            ])->post('https://api.fonnte.com/send', [
-                'target' => $target,
-                'message' => $message,
-                'delay' => '1',
-            ]);
-        } catch (\Exception $e) {
-            Log::error('Fonnte Error in Ticketing: ' . $e->getMessage());
+        $result = app(\App\Services\WhatsAppGateway::class)->send($target, $message);
+
+        if (!($result['success'] ?? false)) {
+            Log::warning('Notifikasi WA tiket gagal.', ['reason' => $result['message'] ?? null]);
         }
     }
 }

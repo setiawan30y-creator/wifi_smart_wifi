@@ -2,6 +2,7 @@
 
 namespace App\Http\Controllers;
 
+use App\Services\Billing\BillingMessages;
 use App\Services\Invoices\InvoiceImporter;
 use App\Models\Invoice;
 use App\Models\Customer;
@@ -207,7 +208,7 @@ class InvoiceController extends Controller
                 continue;
             }
 
-            $message = $this->renderOverdueBroadcastMessage($customer, $template?->content);
+            $message = BillingMessages::arrears($template?->content, $customer, $customer->invoices);
             $result = app(WhatsAppGateway::class)->send($customer->phone, $message);
 
             if ($result['success']) {
@@ -228,40 +229,6 @@ class InvoiceController extends Controller
             $failed > 0 ? 'warning' : 'success',
             "Broadcast tunggakan selesai: {$sent} terkirim, {$failed} gagal, {$skipped} dilewati karena nomor WA kosong."
         );
-    }
-
-    private function renderOverdueBroadcastMessage(Customer $customer, ?string $templateContent): string
-    {
-        $invoices = $customer->invoices;
-        $monthNames = [
-            1 => 'Januari', 2 => 'Februari', 3 => 'Maret', 4 => 'April',
-            5 => 'Mei', 6 => 'Juni', 7 => 'Juli', 8 => 'Agustus',
-            9 => 'September', 10 => 'Oktober', 11 => 'November', 12 => 'Desember',
-        ];
-        $invoiceNumbers = $invoices->pluck('invoice_number')->implode(', ');
-        $periods = $invoices->map(fn ($invoice) => ($monthNames[(int) $invoice->month] ?? $invoice->month) . ' ' . $invoice->year)->implode(', ');
-        $total = (int) $invoices->sum('amount');
-        $oldest = $invoices->first();
-        $billingDay = max(1, min((int) ($customer->billing_day ?: 1), Carbon::create((int) $oldest->year, (int) $oldest->month, 1)->daysInMonth));
-        $dueDate = Carbon::create((int) $oldest->year, (int) $oldest->month, $billingDay)->translatedFormat('d F Y');
-        $message = trim((string) $templateContent) !== ''
-            ? $templateContent
-            : "Halo {nama_pelanggan},\n\nKami informasikan masih ada {jumlah_tunggakan} periode tagihan yang belum lunas.\nPeriode: {periode}\nNomor tagihan: {nomor_tagihan}\nTotal tunggakan: {nominal}\nJatuh tempo tertua: {tanggal_jatuh_tempo}\n\nMohon segera melakukan pembayaran. Terima kasih.";
-
-        return strtr($message, [
-            '{nama}' => $customer->name,
-            '{nama_pelanggan}' => $customer->name,
-            '{nomor_tagihan}' => $invoiceNumbers,
-            '{no_invoice}' => $invoiceNumbers,
-            '{periode}' => $periods,
-            '{bulan}' => $periods,
-            '{nominal}' => 'Rp ' . number_format($total, 0, ',', '.'),
-            '{jumlah}' => 'Rp ' . number_format($total, 0, ',', '.'),
-            '{jumlah_tunggakan}' => (string) $invoices->count(),
-            '{tanggal_jatuh_tempo}' => $dueDate,
-            '{nama_odp}' => $customer->odp?->name ?? '-',
-            '{odp}' => $customer->odp?->name ?? '-',
-        ]);
     }
 
     public function generateForCustomer(Request $request)
