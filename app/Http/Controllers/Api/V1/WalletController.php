@@ -42,8 +42,13 @@ class WalletController extends Controller
 
     public function topup(Request $request, WalletService $walletService)
     {
+        // Pelanggan tidak boleh menambah saldonya sendiri; top-up dicatat oleh staf.
+        if ($request->user()->role === 'client') {
+            return ApiResponse::error('Top-up saldo hanya dapat dilakukan oleh admin.', 403, 'FORBIDDEN');
+        }
+
         $data = $request->validate([
-            'customer_id' => ['nullable', 'exists:customers,id'],
+            'customer_id' => ['required', 'integer'],
             'amount' => ['required', 'numeric', 'min:10000'],
             'description' => ['nullable', 'string', 'max:255'],
             'reference_id' => ['nullable', 'string', 'max:255'],
@@ -69,8 +74,6 @@ class WalletController extends Controller
             return Customer::find($request->input('customer_id'));
         }
 
-        return Customer::where('email', $request->user()->email)
-            ->when($request->user()->phone, fn ($query) => $query->orWhere('phone', $request->user()->phone))
-            ->first();
+        return Customer::forUser($request->user());
     }
 }

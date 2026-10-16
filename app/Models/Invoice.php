@@ -21,6 +21,8 @@ class Invoice extends Model
         'paid_at',
         'payment_method',
         'payment_proof',
+        'payment_ref',
+        'payment_url',
         'overdue_reminder_count',
         'last_overdue_reminder_sent_at',
         'payment_promise_date',

@@ -1046,6 +1046,23 @@
                 </div>
             </form>
         </div>
+
+        <div class="max-w-3xl bg-slate-900/40 border border-slate-800/60 backdrop-blur-md rounded-3xl p-6 md:p-8">
+            <h3 class="text-xl font-bold text-white mb-2">Notifikasi Klien Up/Down (Webhook MikroTik)</h3>
+            <p class="text-sm text-slate-400 mb-4">Pasang URL ini di script <em>On Up</em> / <em>On Down</em> pada PPP Profile MikroTik. Notifikasi dikirim ke nomor WhatsApp admin di Profil Perusahaan. URL berisi token rahasia, jangan dibagikan.</p>
+
+            <label class="block text-[10px] font-bold text-slate-500 mb-2 uppercase tracking-wider">URL Webhook</label>
+            <input type="text" readonly value="{{ $mikrotikWebhookUrl }}" onclick="this.select()" class="w-full bg-slate-950 border border-slate-800 text-slate-200 rounded-xl px-4 py-3 text-xs font-mono">
+
+            <label class="block text-[10px] font-bold text-slate-500 mt-4 mb-2 uppercase tracking-wider">Contoh script On Down</label>
+            <pre class="bg-slate-950 border border-slate-800 text-slate-300 rounded-xl px-4 py-3 text-xs overflow-x-auto">/tool fetch url="{{ $mikrotikWebhookUrl }}&amp;username=$user&amp;status=down" keep-result=no</pre>
+            <p class="text-xs text-slate-500 mt-2">Untuk <em>On Up</em>, ganti <code>status=down</code> menjadi <code>status=up</code>.</p>
+
+            <form action="{{ route('settings.mikrotik-webhook.regenerate') }}" method="POST" class="flex justify-end pt-4" onsubmit="return confirm('Ganti token? URL lama di MikroTik tidak akan berfungsi lagi.')">
+                @csrf
+                <button type="submit" class="px-5 py-2.5 bg-slate-800 hover:bg-slate-700 text-slate-200 font-semibold text-sm rounded-xl transition-all">Ganti Token</button>
+            </form>
+        </div>
     </div>
 </div>
 

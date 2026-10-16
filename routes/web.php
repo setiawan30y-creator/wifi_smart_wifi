@@ -20,21 +20,21 @@ use App\Http\Controllers\InvoiceAutomationSettingController;
 // Auth Routes (Guest)
 Route::middleware('guest')->group(function () {
     Route::get('login', [AuthController::class, 'showLoginForm'])->name('login');
-    Route::post('login', [AuthController::class, 'login']);
+    Route::post('login', [AuthController::class, 'login'])->middleware('throttle:10,1');
 
     // Registration (SaaS Tenant)
     Route::get('register', [\App\Http\Controllers\Auth\RegisterController::class, 'showRegistrationForm'])->name('register');
-    Route::post('register', [\App\Http\Controllers\Auth\RegisterController::class, 'register']);
+    Route::post('register', [\App\Http\Controllers\Auth\RegisterController::class, 'register'])->middleware('throttle:5,1');
 
     // Forgot Password via WA
     Route::get('forgot-password', [\App\Http\Controllers\Auth\ForgotPasswordController::class, 'showLinkRequestForm'])->name('password.request');
-    Route::post('forgot-password', [\App\Http\Controllers\Auth\ForgotPasswordController::class, 'sendResetLinkEmail'])->name('password.email');
+    Route::post('forgot-password', [\App\Http\Controllers\Auth\ForgotPasswordController::class, 'sendResetLinkEmail'])->name('password.email')->middleware('throttle:5,1');
     
     Route::get('verify-otp', [\App\Http\Controllers\Auth\ForgotPasswordController::class, 'showVerifyOtpForm'])->name('password.verify');
-    Route::post('verify-otp', [\App\Http\Controllers\Auth\ForgotPasswordController::class, 'verifyOtp'])->name('password.verify.post');
+    Route::post('verify-otp', [\App\Http\Controllers\Auth\ForgotPasswordController::class, 'verifyOtp'])->name('password.verify.post')->middleware('throttle:10,1');
     
     Route::get('reset-password', [\App\Http\Controllers\Auth\ForgotPasswordController::class, 'showResetForm'])->name('password.reset');
-    Route::post('reset-password', [\App\Http\Controllers\Auth\ForgotPasswordController::class, 'reset'])->name('password.update');
+    Route::post('reset-password', [\App\Http\Controllers\Auth\ForgotPasswordController::class, 'reset'])->name('password.update')->middleware('throttle:10,1');
 });
 Route::post('logout', [AuthController::class, 'logout'])->name('logout');
 
@@ -224,6 +224,7 @@ Route::middleware(['auth'])->group(function () {
     Route::put('settings/accounts/{user}', [SettingsController::class, 'updateAccount'])->name('settings.accounts.update')->middleware('can:settings');
     Route::delete('settings/users/{user}', [SettingsController::class, 'destroyUser'])->name('settings.users.destroy')->middleware('can:settings');
     Route::post('settings/permissions', [SettingsController::class, 'updatePermissions'])->name('settings.permissions')->middleware('can:settings');
+    Route::post('settings/mikrotik-webhook/regenerate', [SettingsController::class, 'regenerateMikrotikWebhookToken'])->name('settings.mikrotik-webhook.regenerate')->middleware('can:settings');
     Route::post('settings/dashboard-interfaces', [SettingsController::class, 'updateDashboardInterfaces'])->name('settings.dashboard_interfaces')->middleware('can:settings');
 
     // Fonnte WA Gateway

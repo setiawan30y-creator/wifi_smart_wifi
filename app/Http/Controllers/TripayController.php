@@ -2,276 +2,360 @@
 
 namespace App\Http\Controllers;
 
-use Illuminate\Http\Request;
-use Illuminate\Support\Facades\Http;
+use App\Models\Customer;
 use App\Models\Invoice;
+use App\Models\PaymentTransaction;
 use App\Models\Setting;
+use Illuminate\Http\Request;
+use Illuminate\Support\Facades\DB;
+use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
+/**
+ * Pembayaran tagihan lewat Tripay (QRIS).
+ *
+ * Pengamanan:
+ *  - Pelanggan (role client) hanya bisa membayar tagihan miliknya sendiri.
+ *  - Tagihan gabungan harus milik satu pelanggan dan masih belum lunas.
+ *  - Callback: tanda tangan dicek dengan hash_equals, merchant_ref & nominal dicocokkan,
+ *    dan pemrosesan idempoten (callback ganda tidak memproses ulang).
+ */
 class TripayController extends Controller
 {
-    /**
-     * Request a new closed transaction for an Invoice
-     */
+    private const SANDBOX_URL = 'https://tripay.co.id/api-sandbox/transaction/create';
+    private const PRODUCTION_URL = 'https://tripay.co.id/api/transaction/create';
+
     public function requestTransaction(Invoice $invoice)
     {
-        // Must belong to the currently logged in client or admin
-        if (auth()->user()->role === 'client' && $invoice->customer_id !== auth()->user()->id) {
-            abort(403);
+        $this->ensureCanPay(collect([$invoice]));
+
+        if ($invoice->status !== 'unpaid') {
+            return back()->with('error', 'Tagihan ini sudah lunas atau tidak bisa dibayar.');
         }
 
-        // Get Tripay Credentials
-        $apiKey = Setting::get('tripay_api_key');
-        $privateKey = Setting::get('tripay_private_key');
-        $merchantCode = Setting::get('tripay_merchant_code');
-        $environment = Setting::get('tripay_environment', 'sandbox');
-
-        if (empty($apiKey) || empty($privateKey) || empty($merchantCode)) {
+        $config = $this->config((int) $invoice->tenant_id);
+        if (!$config) {
             return back()->with('error', 'Payment Gateway belum dikonfigurasi. Hubungi Admin.');
         }
 
-        // URL based on environment
-        $url = $environment === 'production' 
-            ? 'https://tripay.co.id/api/transaction/create'
-            : 'https://tripay.co.id/api-sandbox/transaction/create';
-
-        $merchantRef = $invoice->invoice_number;
-        $amount = $invoice->amount;
-
-        // Generate Signature
-        $signature = hash_hmac('sha256', $merchantCode . $merchantRef . $amount, $privateKey);
-
         $customer = $invoice->customer;
+        $amount = (int) $invoice->amount;
+        $merchantRef = $invoice->invoice_number;
 
-        $data = [
-            'method'         => 'QRIS', // Default to QRIS
-            'merchant_ref'   => $merchantRef,
-            'amount'         => $amount,
-            'customer_name'  => $customer->name,
-            'customer_email' => $customer->email ?? 'noemail@domain.com',
-            'customer_phone' => $customer->phone ?? '080000000000',
-            'order_items'    => [
-                [
-                    'sku'         => 'INV',
-                    'name'        => 'Tagihan Bulan ' . $invoice->month . ' / ' . $invoice->year,
-                    'price'       => $amount,
-                    'quantity'    => 1,
-                ]
-            ],
-            'return_url'   => route('invoices.index'),
-            'expired_time' => (time() + (24 * 60 * 60)), // 24 hours
-            'signature'    => $signature
-        ];
+        $payload = $this->payload($config, $merchantRef, $amount, $customer, [[
+            'sku' => 'INV',
+            'name' => 'Tagihan Bulan ' . $invoice->month . ' / ' . $invoice->year,
+            'price' => $amount,
+            'quantity' => 1,
+        ]]);
 
         try {
-            $response = Http::withToken($apiKey)->post($url, $data);
+            $response = Http::withToken($config['api_key'])->post($config['url'], $payload);
             $result = $response->json();
 
-            if ($response->successful() && $result['success']) {
-                // Save to database
-                $invoice->payment_ref = $result['data']['reference'];
-                $invoice->payment_url = $result['data']['checkout_url'];
-                $invoice->save();
+            if ($response->successful() && ($result['success'] ?? false)) {
+                $invoice->update([
+                    'payment_ref' => $result['data']['reference'],
+                    'payment_url' => $result['data']['checkout_url'],
+                ]);
 
                 return redirect($result['data']['checkout_url']);
             }
 
-            Log::error('Tripay Request Error', ['response' => $result]);
-            return back()->with('error', 'Gagal membuat transaksi: ' . ($result['message'] ?? 'Unknown error'));
+            Log::error('Tripay Request Error', ['invoice_id' => $invoice->id, 'response' => $result]);
 
-        } catch (\Exception $e) {
-            Log::error('Tripay Exception', ['message' => $e->getMessage()]);
+            return back()->with('error', 'Gagal membuat transaksi: ' . ($result['message'] ?? 'Unknown error'));
+        } catch (\Throwable $e) {
+            Log::error('Tripay Exception', ['invoice_id' => $invoice->id, 'message' => $e->getMessage()]);
+
             return back()->with('error', 'Gagal terhubung ke server pembayaran.');
         }
     }
 
-    /**
-     * Request a group transaction for multiple invoices
-     */
     public function requestGroupTransaction(Request $request)
     {
-        $invoiceIds = $request->input('invoice_ids', []);
-        
-        if (empty($invoiceIds)) {
-            return back()->with('error', 'Tidak ada tagihan yang dipilih.');
-        }
+        $data = $request->validate([
+            'invoice_ids' => ['required', 'array', 'min:1', 'max:100'],
+            'invoice_ids.*' => ['integer'],
+        ]);
 
-        $invoices = Invoice::whereIn('id', $invoiceIds)
+        $invoices = Invoice::with('customer')
+            ->whereIn('id', $data['invoice_ids'])
             ->where('status', 'unpaid')
             ->get();
 
         if ($invoices->isEmpty()) {
-            return back()->with('error', 'Tagihan tidak valid atau sudah dibayar.');
+            return response()->json(['success' => false, 'message' => 'Tagihan tidak valid atau sudah dibayar.'], 422);
         }
 
-        $customer = $invoices->first()->customer;
-        $tenantId = $invoices->first()->tenant_id;
-        $totalAmount = $invoices->sum('amount');
+        if ($invoices->pluck('customer_id')->unique()->count() > 1) {
+            return response()->json(['success' => false, 'message' => 'Tagihan gabungan harus milik satu pelanggan.'], 422);
+        }
 
-        // Create PaymentTransaction Record
-        $transaction = \App\Models\PaymentTransaction::create([
+        $this->ensureCanPay($invoices);
+
+        $customer = $invoices->first()->customer;
+        $tenantId = (int) $invoices->first()->tenant_id;
+
+        $config = $this->config($tenantId);
+        if (!$config) {
+            return response()->json(['success' => false, 'message' => 'Payment Gateway belum dikonfigurasi. Hubungi Admin.'], 422);
+        }
+
+        $totalAmount = (int) $invoices->sum('amount');
+
+        $transaction = PaymentTransaction::create([
             'tenant_id' => $tenantId,
             'customer_id' => $customer->id,
-            'reference' => 'INV-GRP-' . time() . rand(100,999),
+            'reference' => 'INV-GRP-' . now()->format('YmdHis') . random_int(100, 999),
             'amount' => $totalAmount,
-            'invoice_ids' => $invoiceIds,
+            'invoice_ids' => $invoices->pluck('id')->values()->all(),
             'status' => 'UNPAID',
         ]);
 
-        // Get Tripay Credentials
-        $apiKey = Setting::get('tripay_api_key');
-        $privateKey = Setting::get('tripay_private_key');
-        $merchantCode = Setting::get('tripay_merchant_code');
-        $environment = Setting::get('tripay_environment', 'sandbox');
+        $orderItems = $invoices->map(fn (Invoice $inv) => [
+            'sku' => 'INV-' . $inv->id,
+            'name' => 'Tagihan ' . $inv->month . '/' . $inv->year,
+            'price' => (int) $inv->amount,
+            'quantity' => 1,
+        ])->values()->all();
 
-        if (empty($apiKey) || empty($privateKey) || empty($merchantCode)) {
-            return back()->with('error', 'Payment Gateway belum dikonfigurasi. Hubungi Admin.');
-        }
-
-        $url = $environment === 'production' 
-            ? 'https://tripay.co.id/api/transaction/create'
-            : 'https://tripay.co.id/api-sandbox/transaction/create';
-
-        $signature = hash_hmac('sha256', $merchantCode . $transaction->reference . $totalAmount, $privateKey);
-
-        $orderItems = [];
-        foreach ($invoices as $inv) {
-            $orderItems[] = [
-                'sku'         => 'INV-' . $inv->id,
-                'name'        => 'Tagihan ' . $inv->month . '/' . $inv->year,
-                'price'       => $inv->amount,
-                'quantity'    => 1,
-            ];
-        }
-
-        $data = [
-            'method'         => 'QRIS',
-            'merchant_ref'   => $transaction->reference,
-            'amount'         => $totalAmount,
-            'customer_name'  => $customer->name,
-            'customer_email' => $customer->email ?? 'noemail@domain.com',
-            'customer_phone' => $customer->phone ?? '080000000000',
-            'order_items'    => $orderItems,
-            'return_url'     => route('invoices.index'),
-            'expired_time'   => (time() + (24 * 60 * 60)),
-            'signature'      => $signature
-        ];
+        $payload = $this->payload($config, $transaction->reference, $totalAmount, $customer, $orderItems);
 
         try {
-            $response = Http::withToken($apiKey)->post($url, $data);
+            $response = Http::withToken($config['api_key'])->post($config['url'], $payload);
             $result = $response->json();
 
-            if ($response->successful() && $result['success']) {
-                $transaction->payment_url = $result['data']['checkout_url'];
-                $transaction->qr_url = $result['data']['qr_url'] ?? null;
-                $transaction->save();
+            if ($response->successful() && ($result['success'] ?? false)) {
+                $transaction->update([
+                    'payment_url' => $result['data']['checkout_url'],
+                    'qr_url' => $result['data']['qr_url'] ?? null,
+                ]);
 
-                // Fire WA Gateway logic here if needed
-                app(\App\Http\Controllers\WaGatewayController::class)->sendInvoiceQris($transaction->id);
+                app(WaGatewayController::class)->sendInvoiceQris($transaction->id);
 
                 return response()->json([
                     'success' => true,
-                    'message' => 'Tagihan QRIS berhasil di-generate dan dikirim ke WA pelanggan.'
+                    'message' => 'Tagihan QRIS berhasil di-generate dan dikirim ke WA pelanggan.',
                 ]);
             }
 
-            Log::error('Tripay Request Error', ['response' => $result]);
-            return response()->json([
-                'success' => false,
-                'message' => 'Gagal membuat transaksi gabungan: ' . ($result['message'] ?? 'Unknown error')
-            ], 400);
+            Log::error('Tripay Request Error', ['transaction_id' => $transaction->id, 'response' => $result]);
 
-        } catch (\Exception $e) {
-            Log::error('Tripay Exception', ['message' => $e->getMessage()]);
             return response()->json([
                 'success' => false,
-                'message' => 'Gagal terhubung ke server pembayaran.'
-            ], 500);
+                'message' => 'Gagal membuat transaksi gabungan: ' . ($result['message'] ?? 'Unknown error'),
+            ], 400);
+        } catch (\Throwable $e) {
+            Log::error('Tripay Exception', ['transaction_id' => $transaction->id, 'message' => $e->getMessage()]);
+
+            return response()->json(['success' => false, 'message' => 'Gagal terhubung ke server pembayaran.'], 500);
         }
     }
 
     /**
-     * Webhook Callback from Tripay
+     * Callback dari Tripay (route publik, tanpa CSRF).
      */
     public function callback(Request $request)
     {
         $json = $request->getContent();
-        $callbackSignature = $request->header('x-callback-signature');
         $data = json_decode($json);
-        
+
         if (!$data || !isset($data->reference)) {
             return response()->json(['success' => false, 'message' => 'Invalid data'], 400);
         }
 
-        // Handle Group Transaction
-        if (str_starts_with($data->reference, 'INV-GRP-')) {
-            $transaction = \App\Models\PaymentTransaction::withoutGlobalScopes()->where('reference', $data->reference)->first();
-            if (!$transaction) return response()->json(['success' => false, 'message' => 'Transaction not found'], 404);
+        if (str_starts_with((string) ($data->merchant_ref ?? ''), 'INV-GRP-')) {
+            return $this->handleGroupCallback($request, $json, $data);
+        }
 
-            $privateKey = Setting::withoutGlobalScopes()
-                            ->where('tenant_id', $transaction->tenant_id)
-                            ->where('key', 'tripay_private_key')
-                            ->value('value');
+        return $this->handleInvoiceCallback($request, $json, $data);
+    }
 
-            if (!$privateKey) return response()->json(['success' => false, 'message' => 'Merchant not configured'], 400);
+    private function handleGroupCallback(Request $request, string $json, object $data)
+    {
+        $transaction = PaymentTransaction::withoutGlobalScopes()
+            ->where('reference', $data->merchant_ref)
+            ->first();
 
-            $signature = hash_hmac('sha256', $json, $privateKey);
-            if ($signature !== $callbackSignature) return response()->json(['success' => false, 'message' => 'Invalid signature'], 400);
+        if (!$transaction) {
+            return response()->json(['success' => false, 'message' => 'Transaction not found'], 404);
+        }
 
-            if ($request->header('x-callback-event') === 'payment_status') {
-                if ($data->status === 'PAID') {
-                    $transaction->status = 'PAID';
-                    $transaction->save();
+        if ($error = $this->verifyCallback($request, $json, (int) $transaction->tenant_id)) {
+            return $error;
+        }
 
-                    // Mark all associated invoices as paid
-                    Invoice::withoutGlobalScopes()->whereIn('id', $transaction->invoice_ids)->update([
+        if ($request->header('x-callback-event') !== 'payment_status') {
+            return response()->json(['success' => true]);
+        }
+
+        $status = strtoupper((string) ($data->status ?? ''));
+
+        if ($status === 'PAID' && !$this->amountMatches($data, (int) $transaction->amount)) {
+            Log::warning('Tripay callback: nominal tidak cocok.', ['reference' => $transaction->reference, 'data' => $data]);
+
+            return response()->json(['success' => false, 'message' => 'Amount mismatch'], 400);
+        }
+
+        DB::transaction(function () use ($transaction, $status) {
+            $locked = PaymentTransaction::withoutGlobalScopes()->whereKey($transaction->id)->lockForUpdate()->first();
+
+            if ($locked->status === 'PAID') {
+                return;
+            }
+
+            if ($status === 'PAID') {
+                $locked->update(['status' => 'PAID']);
+
+                Invoice::withoutGlobalScopes()
+                    ->where('tenant_id', $locked->tenant_id)
+                    ->whereIn('id', $locked->invoice_ids ?? [])
+                    ->where('status', 'unpaid')
+                    ->update([
                         'status' => 'paid',
                         'paid_at' => now(),
                         'payment_method' => 'QRIS',
                     ]);
-                } elseif ($data->status === 'EXPIRED' || $data->status === 'FAILED') {
-                    $transaction->status = $data->status;
-                    $transaction->save();
-                }
+            } elseif (in_array($status, ['EXPIRED', 'FAILED'], true)) {
+                $locked->update(['status' => $status]);
             }
-            return response()->json(['success' => true]);
-        }
+        });
 
-        // Handle Single Legacy Invoice
+        return response()->json(['success' => true]);
+    }
+
+    private function handleInvoiceCallback(Request $request, string $json, object $data)
+    {
         $invoice = Invoice::withoutGlobalScopes()->where('payment_ref', $data->reference)->first();
 
-        if (!$invoice) {
+        if (!$invoice || (isset($data->merchant_ref) && $data->merchant_ref !== $invoice->invoice_number)) {
             return response()->json(['success' => false, 'message' => 'Invoice not found'], 404);
         }
 
-        $privateKey = Setting::withoutGlobalScopes()
-                        ->where('tenant_id', $invoice->tenant_id)
-                        ->where('key', 'tripay_private_key')
-                        ->value('value');
+        if ($error = $this->verifyCallback($request, $json, (int) $invoice->tenant_id)) {
+            return $error;
+        }
+
+        if ($request->header('x-callback-event') !== 'payment_status') {
+            return response()->json(['success' => true]);
+        }
+
+        $status = strtoupper((string) ($data->status ?? ''));
+
+        if ($status === 'PAID' && !$this->amountMatches($data, (int) $invoice->amount)) {
+            Log::warning('Tripay callback: nominal tidak cocok.', ['invoice_id' => $invoice->id, 'data' => $data]);
+
+            return response()->json(['success' => false, 'message' => 'Amount mismatch'], 400);
+        }
+
+        DB::transaction(function () use ($invoice, $status) {
+            $locked = Invoice::withoutGlobalScopes()->whereKey($invoice->id)->lockForUpdate()->first();
+
+            if ($locked->status === 'paid') {
+                return;
+            }
+
+            if ($status === 'PAID') {
+                $locked->update([
+                    'status' => 'paid',
+                    'paid_at' => now(),
+                    'payment_method' => 'QRIS',
+                ]);
+            } elseif (in_array($status, ['EXPIRED', 'FAILED'], true)) {
+                $locked->update(['payment_url' => null, 'payment_ref' => null]);
+            }
+        });
+
+        return response()->json(['success' => true]);
+    }
+
+    /**
+     * Mengembalikan response error jika tanda tangan callback tidak valid.
+     */
+    private function verifyCallback(Request $request, string $json, int $tenantId)
+    {
+        $privateKey = Setting::forTenant($tenantId)->where('key', 'tripay_private_key')->value('value');
 
         if (!$privateKey) {
             return response()->json(['success' => false, 'message' => 'Merchant not configured'], 400);
         }
 
-        $signature = hash_hmac('sha256', $json, $privateKey);
+        $expected = hash_hmac('sha256', $json, $privateKey);
+        $given = (string) $request->header('x-callback-signature', '');
 
-        if ($signature !== $callbackSignature) {
+        if (!hash_equals($expected, $given)) {
             return response()->json(['success' => false, 'message' => 'Invalid signature'], 400);
         }
 
-        if ($request->header('x-callback-event') === 'payment_status') {
-            if ($data->status === 'PAID') {
-                $invoice->status = 'paid';
-                $invoice->paid_at = now();
-                $invoice->payment_method = 'QRIS';
-                $invoice->save();
-            } elseif ($data->status === 'EXPIRED' || $data->status === 'FAILED') {
-                $invoice->payment_url = null;
-                $invoice->payment_ref = null;
-                $invoice->save();
-            }
+        return null;
+    }
+
+    /**
+     * Nominal yang dibayar (tanpa biaya yang dibebankan ke pelanggan) harus sama dengan tagihan.
+     */
+    private function amountMatches(object $data, int $expected): bool
+    {
+        if (!isset($data->total_amount)) {
+            return false;
         }
 
-        return response()->json(['success' => true]);
+        $paid = (int) $data->total_amount - (int) ($data->fee_customer ?? 0);
+
+        return $paid === $expected;
+    }
+
+    /**
+     * Pelanggan hanya boleh membayar tagihan miliknya sendiri.
+     */
+    private function ensureCanPay($invoices): void
+    {
+        $user = auth()->user();
+
+        if ($user->role !== 'client') {
+            return;
+        }
+
+        $customer = Customer::forUser($user);
+
+        abort_unless(
+            $customer && $invoices->every(fn (Invoice $inv) => (int) $inv->customer_id === (int) $customer->id),
+            403,
+            'Anda hanya dapat membayar tagihan milik Anda sendiri.'
+        );
+    }
+
+    private function config(int $tenantId): ?array
+    {
+        $settings = Setting::forTenant($tenantId)
+            ->whereIn('key', ['tripay_api_key', 'tripay_private_key', 'tripay_merchant_code', 'tripay_environment'])
+            ->pluck('value', 'key');
+
+        if (empty($settings['tripay_api_key']) || empty($settings['tripay_private_key']) || empty($settings['tripay_merchant_code'])) {
+            return null;
+        }
+
+        return [
+            'api_key' => $settings['tripay_api_key'],
+            'private_key' => $settings['tripay_private_key'],
+            'merchant_code' => $settings['tripay_merchant_code'],
+            'url' => ($settings['tripay_environment'] ?? 'sandbox') === 'production' ? self::PRODUCTION_URL : self::SANDBOX_URL,
+        ];
+    }
+
+    private function payload(array $config, string $merchantRef, int $amount, Customer $customer, array $orderItems): array
+    {
+        return [
+            'method' => 'QRIS',
+            'merchant_ref' => $merchantRef,
+            'amount' => $amount,
+            'customer_name' => $customer->name,
+            'customer_email' => $customer->email ?: 'noemail@domain.com',
+            'customer_phone' => $customer->phone ?: '080000000000',
+            'order_items' => $orderItems,
+            'return_url' => route('invoices.index'),
+            'expired_time' => time() + (24 * 60 * 60),
+            'signature' => hash_hmac('sha256', $config['merchant_code'] . $merchantRef . $amount, $config['private_key']),
+        ];
     }
 }

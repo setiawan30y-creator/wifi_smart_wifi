@@ -3,16 +3,30 @@
 namespace App\Http\Controllers\Auth;
 
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
 use App\Models\User;
-use App\Models\Setting;
-use Illuminate\Support\Facades\Http;
+use App\Services\WhatsAppGateway;
+use App\Support\Phone;
+use App\Support\Tenancy\TenantContext;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Cache;
 use Illuminate\Support\Facades\Hash;
-use Illuminate\Support\Facades\Auth;
+use Illuminate\Support\Facades\Log;
 
+/**
+ * Reset kata sandi lewat OTP WhatsApp.
+ *
+ * Pengamanan:
+ *  - Pesan selalu sama, baik nomor terdaftar maupun tidak (tidak membocorkan akun).
+ *  - OTP 6 digit dari random_int(), disimpan dalam bentuk hash, berlaku 5 menit.
+ *  - Maksimal 5 kali salah memasukkan OTP; setelah itu OTP hangus.
+ *  - Route dibatasi jumlah percobaannya (throttle) di routes/web.php.
+ *  - WA dikirim memakai gateway milik tenant user (atau gateway SaaS), bukan tenant lain.
+ */
 class ForgotPasswordController extends Controller
 {
+    private const OTP_TTL_MINUTES = 5;
+    private const MAX_ATTEMPTS = 5;
+
     public function showLinkRequestForm()
     {
         return view('auth.forgot-password');
@@ -21,94 +35,81 @@ class ForgotPasswordController extends Controller
     public function sendResetLinkEmail(Request $request)
     {
         $request->validate([
-            'phone' => 'required|string',
+            'phone' => 'required|string|max:30',
         ]);
 
-        // Clean phone number format
-        $phone = preg_replace('/[^0-9]/', '', $request->phone);
-        if (str_starts_with($phone, '0')) {
-            $phone = '62' . substr($phone, 1);
-        }
+        $phone = Phone::normalize($request->phone);
+        $user = $phone ? $this->findUserByPhone($phone) : null;
 
-        // Find user by phone, bypassing TenantScope since we don't know the tenant yet
-        $user = User::withoutGlobalScopes()->where('phone', $phone)
-                    ->orWhere('phone', '0' . substr($phone, 2))
-                    ->orWhere('phone', '+' . $phone)
-                    ->first();
+        session()->forget(['reset_password_user_id', 'otp_verified']);
 
-        if (!$user) {
-            return back()->withErrors(['phone' => 'Nomor WhatsApp tidak terdaftar di sistem.'])->withInput();
-        }
+        if ($user) {
+            $otp = (string) random_int(100000, 999999);
 
-        // Generate 6-digit OTP
-        $otp = rand(100000, 999999);
-        
-        // Store OTP in cache for 5 minutes
-        Cache::put('password_reset_otp_' . $user->id, $otp, now()->addMinutes(5));
-        
-        // Save user ID to session so we know who is resetting password
-        session(['reset_password_user_id' => $user->id]);
+            Cache::put($this->cacheKey($user->id), [
+                'hash' => Hash::make($otp),
+                'attempts' => 0,
+            ], now()->addMinutes(self::OTP_TTL_MINUTES));
 
-        // Send OTP via WA Fonnte
-        // Use user's tenant token, or fallback to superadmin token (tenant_id = 1)
-        $token = Setting::withoutGlobalScopes()->where('tenant_id', $user->tenant_id)->where('key', 'fonnte_token')->value('value');
-        if (empty($token)) {
-            $token = Setting::withoutGlobalScopes()->where('tenant_id', 1)->where('key', 'fonnte_token')->value('value');
-        }
+            session(['reset_password_user_id' => $user->id]);
 
-        if (empty($token)) {
-            return back()->withErrors(['phone' => 'Sistem tidak dapat mengirim OTP karena Token WA Gateway belum dikonfigurasi.']);
-        }
+            $message = "Halo {$user->name},\n\nAnda meminta reset kata sandi akun Anda.\n\n"
+                . "Kode OTP Anda: *{$otp}*\n\n"
+                . "Kode berlaku " . self::OTP_TTL_MINUTES . " menit. Jangan berikan kode ini kepada siapa pun.";
 
-        $message = "Halo {$user->name},\n\nAnda meminta reset kata sandi untuk akun Billing RT/RW Anda.\n\nKode OTP Anda adalah: *{$otp}*\n\nKode ini berlaku selama 5 menit. Jangan berikan kode ini kepada siapa pun.";
+            $result = app(TenantContext::class)->run((int) $user->tenant_id, function () use ($phone, $message) {
+                return app(WhatsAppGateway::class)->send($phone, $message);
+            });
 
-        try {
-            $response = Http::withHeaders([
-                'Authorization' => $token
-            ])->post('https://api.fonnte.com/send', [
-                'target' => $phone,
-                'message' => $message,
-                'countryCode' => '62',
-            ]);
-
-            if ($response->successful()) {
-                return redirect()->route('password.verify')->with('success', 'Kode OTP telah dikirim ke nomor WhatsApp Anda.');
-            } else {
-                return back()->withErrors(['phone' => 'Gagal mengirim OTP via WhatsApp.'])->withInput();
+            if (!($result['success'] ?? false)) {
+                Log::warning('OTP reset password gagal dikirim.', [
+                    'user_id' => $user->id,
+                    'reason' => $result['message'] ?? null,
+                ]);
             }
-        } catch (\Exception $e) {
-            return back()->withErrors(['phone' => 'Gagal terhubung ke server WhatsApp Gateway.'])->withInput();
         }
+
+        return redirect()->route('password.verify')
+            ->with('success', 'Jika nomor tersebut terdaftar, kode OTP telah dikirim ke WhatsApp.');
     }
 
     public function showVerifyOtpForm()
     {
-        if (!session()->has('reset_password_user_id')) {
-            return redirect()->route('password.request');
-        }
         return view('auth.verify-otp');
     }
 
     public function verifyOtp(Request $request)
     {
         $request->validate([
-            'otp' => 'required|numeric|digits:6',
+            'otp' => 'required|digits:6',
         ]);
 
         $userId = session('reset_password_user_id');
-        if (!$userId) {
-            return redirect()->route('password.request')->withErrors(['phone' => 'Sesi kedaluwarsa. Silakan ulangi dari awal.']);
+        $entry = $userId ? Cache::get($this->cacheKey($userId)) : null;
+
+        if (!$entry) {
+            return back()->withErrors(['otp' => 'Kode OTP tidak valid atau sudah kedaluwarsa. Silakan minta kode baru.']);
         }
 
-        $cachedOtp = Cache::get('password_reset_otp_' . $userId);
+        if (!Hash::check((string) $request->otp, $entry['hash'])) {
+            $entry['attempts']++;
 
-        if (!$cachedOtp || $cachedOtp != $request->otp) {
+            if ($entry['attempts'] >= self::MAX_ATTEMPTS) {
+                Cache::forget($this->cacheKey($userId));
+                session()->forget('reset_password_user_id');
+
+                return redirect()->route('password.request')
+                    ->withErrors(['phone' => 'Terlalu banyak percobaan. Silakan minta kode OTP baru.']);
+            }
+
+            Cache::put($this->cacheKey($userId), $entry, now()->addMinutes(self::OTP_TTL_MINUTES));
+
             return back()->withErrors(['otp' => 'Kode OTP tidak valid atau sudah kedaluwarsa.']);
         }
 
-        // OTP valid, allow user to proceed to reset password
+        Cache::forget($this->cacheKey($userId));
         session(['otp_verified' => true]);
-        
+
         return redirect()->route('password.reset');
     }
 
@@ -117,7 +118,7 @@ class ForgotPasswordController extends Controller
         if (!session('otp_verified') || !session('reset_password_user_id')) {
             return redirect()->route('password.request');
         }
-        
+
         return view('auth.reset-password');
     }
 
@@ -132,16 +133,35 @@ class ForgotPasswordController extends Controller
         ]);
 
         $user = User::withoutGlobalScopes()->find(session('reset_password_user_id'));
-        
-        if ($user) {
-            $user->password = Hash::make($request->password);
-            $user->save();
-        }
 
-        // Clear session and cache
-        Cache::forget('password_reset_otp_' . $user->id);
         session()->forget(['reset_password_user_id', 'otp_verified']);
 
+        if (!$user) {
+            return redirect()->route('password.request');
+        }
+
+        $user->password = Hash::make($request->password);
+        $user->setRememberToken(null);
+        $user->save();
+
+        session()->regenerate();
+
         return redirect()->route('login')->with('info', 'Kata sandi berhasil direset. Silakan login dengan kata sandi baru Anda.');
+    }
+
+    private function findUserByPhone(string $normalizedPhone): ?User
+    {
+        $variants = array_unique([
+            $normalizedPhone,
+            '0' . substr($normalizedPhone, 2),
+            '+' . $normalizedPhone,
+        ]);
+
+        return User::withoutGlobalScopes()->whereIn('phone', $variants)->orderBy('id')->first();
+    }
+
+    private function cacheKey(int $userId): string
+    {
+        return 'password_reset_otp_' . $userId;
     }
 }

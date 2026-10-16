@@ -52,7 +52,7 @@ class SaasInvoiceController extends Controller
         $invoice->load('tenant');
         $tenant = $invoice->tenant;
         
-        $settings = \App\Models\Setting::whereNull('tenant_id')->pluck('value', 'key');
+        $settings = \App\Models\Setting::platform();
         
         $endpoint = $settings['saas_wa_endpoint'] ?? null;
         $template = $settings['saas_wa_invoice_template'] ?? '';

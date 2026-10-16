@@ -25,14 +25,16 @@ class WalletService
         }
 
         return DB::transaction(function () use ($customer, $amount, $description, $referenceId) {
-            $customer->increment('balance', $amount);
-            $customer->refresh();
+            $lockedCustomer = Customer::whereKey($customer->id)->lockForUpdate()->firstOrFail();
+            $lockedCustomer->increment('balance', $amount);
+            $lockedCustomer->refresh();
+            $customer->balance = $lockedCustomer->balance;
 
             return WalletTransaction::create([
-                'customer_id' => $customer->id,
+                'customer_id' => $lockedCustomer->id,
                 'type' => 'credit',
                 'amount' => $amount,
-                'balance_after' => $customer->balance,
+                'balance_after' => $lockedCustomer->balance,
                 'reference_id' => $referenceId,
                 'description' => $description,
             ]);
@@ -57,7 +59,7 @@ class WalletService
 
         return DB::transaction(function () use ($customer, $amount, $description, $referenceId) {
             // Lock the row for update to prevent race conditions (double spending)
-            $lockedCustomer = Customer::where('id', $customer->id)->lockForUpdate()->first();
+            $lockedCustomer = Customer::whereKey($customer->id)->lockForUpdate()->firstOrFail();
 
             if ($lockedCustomer->balance < $amount) {
                 throw new Exception("Saldo tidak mencukupi. Sisa saldo: " . number_format($lockedCustomer->balance, 0, ',', '.'));

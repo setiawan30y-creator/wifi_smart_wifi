@@ -2,43 +2,69 @@
 
 namespace App\Http\Controllers\Client;
 
+use App\Http\Controllers\Client\Concerns\ResolvesClientCustomer;
 use App\Http\Controllers\Controller;
-use Illuminate\Http\Request;
-use App\Models\Customer;
+use App\Models\Invoice;
 use App\Services\WalletService;
-use Exception;
+use Illuminate\Support\Facades\DB;
+use Throwable;
 
 class WalletController extends Controller
 {
-    public function topup(Request $request, WalletService $walletService)
-    {
-        $request->validate([
-            'amount' => 'required|numeric|min:10000',
-        ]);
+    use ResolvesClientCustomer;
 
-        $customer = Customer::first(); // Demo customer
-        
-        try {
-            // For demo, we just auto-approve the topup.
-            // In a real app, this would redirect to Tripay/Midtrans checkout URL.
-            $walletService->credit($customer, $request->amount, 'Topup Saldo (Simulasi)');
-            return back()->with('success', 'Top-up saldo sebesar Rp ' . number_format($request->amount, 0, ',', '.') . ' berhasil ditambahkan!');
-        } catch (Exception $e) {
-            return back()->with('error', $e->getMessage());
-        }
+    /**
+     * Top-up mandiri belum tersedia: saldo hanya bertambah lewat admin atau pembayaran
+     * yang sudah terverifikasi. (Dulu tombol ini menambah saldo tanpa pembayaran.)
+     */
+    public function topup()
+    {
+        $this->clientCustomer();
+
+        return back()->with('error', 'Top-up saldo belum bisa dilakukan sendiri. Silakan hubungi admin untuk mengisi saldo.');
     }
 
-    public function payWifi(Request $request, WalletService $walletService)
+    /**
+     * Bayar tagihan internet tertua yang belum lunas memakai saldo dompet.
+     */
+    public function payWifi(WalletService $walletService)
     {
-        $customer = Customer::first(); // Demo customer
-        
+        $customer = $this->clientCustomer();
+
+        $invoice = Invoice::where('customer_id', $customer->id)
+            ->where('status', 'unpaid')
+            ->orderBy('year')
+            ->orderBy('month')
+            ->first();
+
+        if (!$invoice) {
+            return back()->with('success', 'Tidak ada tagihan yang perlu dibayar.');
+        }
+
         try {
-            // For demo, assume tagihan is Rp 150.000
-            $tagihan = 150000;
-            $walletService->debit($customer, $tagihan, 'Pembayaran Tagihan WiFi Bulanan');
-            return back()->with('success', 'Pembayaran WiFi berhasil dipotong dari saldo Anda.');
-        } catch (Exception $e) {
+            DB::transaction(function () use ($walletService, $customer, $invoice) {
+                $locked = Invoice::whereKey($invoice->id)->lockForUpdate()->first();
+                if ($locked->status !== 'unpaid') {
+                    return;
+                }
+
+                $walletService->debit(
+                    $customer,
+                    (float) $locked->amount,
+                    'Pembayaran tagihan ' . $locked->invoice_number,
+                    $locked->invoice_number
+                );
+
+                $locked->update([
+                    'status' => 'paid',
+                    'paid_at' => now(),
+                    'payment_method' => 'wallet',
+                ]);
+            });
+        } catch (Throwable $e) {
             return back()->with('error', $e->getMessage());
         }
+
+        return back()->with('success', 'Tagihan ' . $invoice->invoice_number . ' berhasil dibayar dari saldo.');
     }
 }

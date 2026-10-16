@@ -13,8 +13,8 @@ class CheckTrialStatus
     {
         $user = Auth::user();
         
-        // Lewati pengecekan jika user adalah superadmin (tidak terikat tenant spesifik atau pemilik SaaS utama)
-        if ($user && $user->role === 'superadmin') {
+        // Hanya pemilik SaaS yang dilewati. Superadmin milik tenant tetap ikut status langganan tenantnya.
+        if ($user && $user->isSaasOwner()) {
             return $next($request);
         }
 

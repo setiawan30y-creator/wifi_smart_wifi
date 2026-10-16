@@ -51,6 +51,34 @@ class Customer extends Model
     public const MODE_POSTPAID = 'postpaid';
     public const MODE_PREPAID = 'prepaid';
 
+    /**
+     * Data pelanggan milik akun login (role client), dicocokkan lewat email atau nomor HP
+     * di dalam tenant aktif. Mengembalikan null bila akun belum terhubung ke pelanggan.
+     */
+    public static function forUser(\App\Models\User $user): ?self
+    {
+        $email = trim((string) $user->email);
+        $phone = \App\Support\Phone::normalize($user->phone);
+
+        if ($email === '' && !$phone) {
+            return null;
+        }
+
+        return static::query()
+            ->where(function ($query) use ($email, $user, $phone) {
+                if ($email !== '') {
+                    $query->orWhere('email', $email);
+                }
+                if ($phone) {
+                    $query->orWhere('phone', $phone)
+                        ->orWhere('phone', (string) $user->phone)
+                        ->orWhere('phone', '0' . substr($phone, 2));
+                }
+            })
+            ->orderBy('id')
+            ->first();
+    }
+
     public static function billingModeLabels(): array
     {
         return [

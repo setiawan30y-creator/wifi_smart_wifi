@@ -37,4 +37,23 @@ class Setting extends Model
             ['value' => is_array($value) || is_object($value) ? json_encode($value) : $value]
         );
     }
+
+    /**
+     * Pengaturan tingkat platform/SaaS (tenant_id NULL), dikelola oleh pemilik SaaS.
+     */
+    public static function platform(): array
+    {
+        return \Illuminate\Support\Facades\DB::table('settings')
+            ->whereNull('tenant_id')
+            ->pluck('value', 'key')
+            ->toArray();
+    }
+
+    public static function setPlatform(string $key, $value): void
+    {
+        \Illuminate\Support\Facades\DB::table('settings')->updateOrInsert(
+            ['tenant_id' => null, 'key' => $key],
+            ['value' => is_array($value) || is_object($value) ? json_encode($value) : $value, 'updated_at' => now(), 'created_at' => now()]
+        );
+    }
 }

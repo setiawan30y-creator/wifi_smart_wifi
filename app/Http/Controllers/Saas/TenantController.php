@@ -56,7 +56,9 @@ class TenantController extends Controller
             return redirect()->route('saas.tenants.index')->with('success', 'Perusahaan Klien berhasil ditambahkan beserta akun Admin-nya.');
         } catch (\Exception $e) {
             DB::rollBack();
-            return back()->with('error', 'Gagal menambahkan klien: ' . $e->getMessage());
+            \Illuminate\Support\Facades\Log::error('Gagal menambahkan tenant.', ['error' => $e->getMessage()]);
+
+            return back()->withInput()->with('error', 'Gagal menambahkan klien. Periksa kembali data lalu coba lagi.');
         }
     }
 

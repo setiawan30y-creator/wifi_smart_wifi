@@ -20,7 +20,9 @@ Route::get('/user', function (Request $request) {
 })->middleware(['auth:sanctum', 'tenant.user']);
 
 // MikroTik Webhook for Client Status
-Route::any('/mikrotik/client-status', [\App\Http\Controllers\MikrotikWebhookController::class, 'clientStatus']);
+Route::match(['get', 'post'], '/mikrotik/client-status', [\App\Http\Controllers\MikrotikWebhookController::class, 'clientStatus'])
+    ->name('mikrotik.client-status')
+    ->middleware('throttle:120,1');
 
 Route::prefix('v1')->name('api.v1.')->group(function () {
     Route::post('auth/login', [ApiAuthController::class, 'login'])->middleware('throttle:10,1');

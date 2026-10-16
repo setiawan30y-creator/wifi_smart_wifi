@@ -56,9 +56,12 @@ class RegisterController extends Controller
             // 4. Redirect to dashboard
             return redirect()->route('dashboard')->with('success', 'Pendaftaran Berhasil! Selamat datang di Ruang Kerja Anda. Nikmati Masa Uji Coba Gratis 14 Hari.');
 
-        } catch (\Exception $e) {
-            DB::rollback();
-            return back()->withInput()->with('error', 'Terjadi kesalahan sistem: ' . $e->getMessage());
+        } catch (\Throwable $e) {
+            DB::rollBack();
+            \Illuminate\Support\Facades\Log::error('Pendaftaran tenant gagal.', ['error' => $e->getMessage()]);
+
+            return back()->withInput($request->except('password', 'password_confirmation'))
+                ->with('error', 'Pendaftaran gagal diproses. Silakan coba lagi beberapa saat lagi.');
         }
     }
 }

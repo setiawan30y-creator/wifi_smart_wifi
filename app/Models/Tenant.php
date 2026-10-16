@@ -18,10 +18,13 @@ class Tenant extends Model
         'subscription_plan',
         'subscription_ends_at',
         'is_trial',
+        'subscription_status',
+        'trial_ends_at',
     ];
 
     protected $casts = [
         'subscription_ends_at' => 'datetime',
+        'trial_ends_at' => 'datetime',
         'is_trial' => 'boolean',
         'balance' => 'decimal:2',
     ];

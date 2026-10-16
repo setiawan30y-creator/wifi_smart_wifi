@@ -125,15 +125,11 @@ class WhatsAppGateway
                 }
             }
 
-            // CATATAN: fallback ini mengambil nilai dari tenant lain jika tenant
-            // ini belum mengisi pengaturan. Dipertahankan apa adanya dulu;
-            // akan diperbaiki di tahap keamanan (lihat audit).
+            // Jika tenant belum mengisi, pakai pengaturan gateway SaaS (tenant_id NULL).
+            // Tidak pernah memakai token/pengaturan milik tenant lain.
             $value = Setting::withoutGlobalScopes()
+                ->whereNull('tenant_id')
                 ->where('key', $key)
-                ->whereNotNull('value')
-                ->where('value', '<>', '')
-                ->orderByRaw('tenant_id IS NULL')
-                ->orderBy('tenant_id')
                 ->value('value');
 
             return filled($value) ? $value : $default;

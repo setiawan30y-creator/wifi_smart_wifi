@@ -28,11 +28,10 @@
         </div>
         
         <div class="flex gap-4 mt-6">
-            <form action="{{ route('client.wallet.topup') }}" method="POST" class="flex-1" id="form-topup">
+            <form action="{{ route('client.wallet.pay-wifi') }}" method="POST" class="flex-1" onsubmit="return confirm('Bayar tagihan internet tertua memakai saldo dompet?')">
                 @csrf
-                <input type="hidden" name="amount" value="50000"> <!-- Default simulasi TopUp 50k -->
-                <button type="button" onclick="confirmTopup()" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl py-3.5 text-sm font-semibold shadow-md shadow-indigo-600/20 active:scale-95 transition-all">
-                    + Top Up (Simulasi 50k)
+                <button type="submit" class="w-full bg-indigo-600 hover:bg-indigo-700 text-white rounded-2xl py-3.5 text-sm font-semibold shadow-md shadow-indigo-600/20 active:scale-95 transition-all">
+                    Bayar Tagihan dengan Saldo
                 </button>
             </form>
             <a href="{{ route('client.ppob.index') }}" class="w-14 bg-slate-50 hover:bg-slate-100 text-indigo-600 rounded-2xl flex items-center justify-center border border-indigo-100 active:scale-95 transition-all">
@@ -42,13 +41,7 @@
     </div>
 </div>
 
-<script>
-    function confirmTopup() {
-        if(confirm("Apakah Anda yakin ingin simulasi Top-Up sebesar Rp 50.000?")) {
-            document.getElementById('form-topup').submit();
-        }
-    }
-</script>
+<p class="px-6 mt-3 text-xs text-slate-500">Untuk mengisi saldo, silakan hubungi admin.</p>
 
 <!-- Main Services (PPOB Grid) -->
 <div class="px-6 mt-8">

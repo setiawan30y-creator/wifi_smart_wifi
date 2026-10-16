@@ -143,7 +143,10 @@ class SettingsController extends Controller
         }
         $dashboardInterfaces = explode(',', Setting::get('dashboard_interfaces', ''));
 
+        $mikrotikWebhookUrl = app(\App\Services\MikrotikWebhookToken::class)->url();
+
         return view('settings.index', compact(
+            'mikrotikWebhookUrl',
             'companyName',
             'companyAddress',
             'companyPhone',
@@ -356,8 +359,8 @@ class SettingsController extends Controller
         $request->validate([
             'name' => 'required|string|max:255',
             'email' => 'required|string|email|max:255|unique:users,email',
-            'password' => 'required|string|min:6',
-            'role' => 'required|string|in:superadmin,admin,tehnisi',
+            'password' => 'required|string|min:8',
+            'role' => ['required', 'string', \Illuminate\Validation\Rule::in($this->assignableRoles())],
             'photo' => 'nullable|image|max:2048',
             'phone' => 'nullable|string|max:20',
             'address' => 'nullable|string',
@@ -386,12 +389,14 @@ class SettingsController extends Controller
      */
     public function updateUser(Request $request, User $user)
     {
+        $this->ensureCanManage($user);
+
         $request->validate([
             'name' => 'required|string|max:255',
             'phone' => 'nullable|string|max:20',
             'address' => 'nullable|string',
             'photo' => 'nullable|image|max:2048',
-            'password' => 'nullable|string|min:6',
+            'password' => 'nullable|string|min:8',
         ]);
 
         $user->name = $request->name;
@@ -419,10 +424,12 @@ class SettingsController extends Controller
      */
     public function updateAccount(Request $request, User $user)
     {
+        $this->ensureCanManage($user);
+
         $request->validate([
             'email' => 'required|string|email|max:255|unique:users,email,' . $user->id,
-            'role' => 'required|string|in:superadmin,admin,tehnisi',
-            'password' => 'nullable|string|min:6',
+            'role' => ['required', 'string', \Illuminate\Validation\Rule::in($this->assignableRoles())],
+            'password' => 'nullable|string|min:8',
         ]);
 
         // Prevent superadmin self-demotion
@@ -447,6 +454,8 @@ class SettingsController extends Controller
      */
     public function destroyUser(User $user)
     {
+        $this->ensureCanManage($user);
+
         if ($user->id === Auth::id()) {
             return redirect()->route('settings.index', ['tab' => 'users'])->with('error', 'Anda tidak dapat menghapus akun Anda sendiri yang sedang digunakan.');
         }
@@ -490,4 +499,35 @@ class SettingsController extends Controller
         return redirect()->route('settings.index', ['tab' => 'permissions'])->with('success', 'Pengaturan hak akses berhasil disimpan.');
     }
 
+
+    /**
+     * Role yang boleh diberikan oleh user yang sedang login.
+     * Hanya superadmin yang boleh membuat/menjadikan user lain superadmin.
+     */
+    private function assignableRoles(): array
+    {
+        return Auth::user()?->role === 'superadmin'
+            ? ['superadmin', 'admin', 'tehnisi']
+            : ['admin', 'tehnisi'];
+    }
+
+    /**
+     * Admin biasa tidak boleh mengubah/menghapus akun superadmin.
+     */
+    private function ensureCanManage(User $target): void
+    {
+        abort_if(
+            $target->role === 'superadmin' && Auth::user()?->role !== 'superadmin',
+            403,
+            'Hanya Superadmin yang dapat mengubah akun Superadmin.'
+        );
+    }
+
+    public function regenerateMikrotikWebhookToken(\App\Services\MikrotikWebhookToken $tokens)
+    {
+        $tokens->regenerate();
+
+        return redirect()->route('settings.index', ['tab' => 'traffic'])
+            ->with('success', 'Token webhook MikroTik diganti. Perbarui URL di script PPP Profile MikroTik.');
+    }
 }

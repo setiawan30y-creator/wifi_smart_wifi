@@ -81,8 +81,6 @@ class PpobController extends Controller
             return Customer::find($request->input('customer_id'));
         }
 
-        return Customer::where('email', $request->user()->email)
-            ->when($request->user()->phone, fn ($query) => $query->orWhere('phone', $request->user()->phone))
-            ->first();
+        return Customer::forUser($request->user());
     }
 }
