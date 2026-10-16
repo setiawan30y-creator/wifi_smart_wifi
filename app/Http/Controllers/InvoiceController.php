@@ -11,7 +11,7 @@ use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Facades\Schema;
 use Illuminate\Support\Facades\Storage;
-use App\Http\Controllers\WaGatewayController;
+use App\Services\WhatsAppGateway;
 
 class InvoiceController extends Controller
 {
@@ -207,7 +207,7 @@ class InvoiceController extends Controller
             }
 
             $message = $this->renderOverdueBroadcastMessage($customer, $template?->content);
-            $result = app(WaGatewayController::class)->sendDirect($customer->phone, $message);
+            $result = app(WhatsAppGateway::class)->send($customer->phone, $message);
 
             if ($result['success']) {
                 $sent++;
@@ -345,7 +345,7 @@ class InvoiceController extends Controller
                 $result['paidAt'] ?? null
             );
 
-            $waResult = app(WaGatewayController::class)->sendDirect($result['customer']->phone, $waMessage);
+            $waResult = app(WhatsAppGateway::class)->send($result['customer']->phone, $waMessage);
             session(['invoice_payment_wa_template_id' => $waTemplate?->id]);
 
             if (!$waResult['success']) {
@@ -473,7 +473,7 @@ class InvoiceController extends Controller
                 $waTemplate?->content,
                 $result['paidAt'] ?? null
             );
-            $waResult = app(WaGatewayController::class)->sendDirect($result['customer']->phone, $waMessage);
+            $waResult = app(WhatsAppGateway::class)->send($result['customer']->phone, $waMessage);
             session(['invoice_payment_wa_template_id' => $waTemplate?->id]);
 
             if (!$waResult['success']) {

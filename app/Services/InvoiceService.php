@@ -6,7 +6,7 @@ use App\Support\Phone;
 use App\Models\Invoice;
 use App\Models\Customer;
 use App\Models\Setting;
-use App\Http\Controllers\WaGatewayController;
+use App\Services\WhatsAppGateway;
 use Illuminate\Support\Carbon;
 use Illuminate\Support\Facades\Schema;
 
@@ -423,7 +423,7 @@ class InvoiceService
         $sent = 0;
         $failed = 0;
         $skipped = 0;
-        $gateway = app(WaGatewayController::class);
+        $gateway = app(WhatsAppGateway::class);
         $delayMin = max(0, (int) Setting::get('billing_auto_generate_wa_delay_min', 0));
         $delayMax = max($delayMin, (int) Setting::get('billing_auto_generate_wa_delay_max', 0));
 
@@ -438,7 +438,7 @@ class InvoiceService
             $billingDay = max(1, min((int) ($customer->billing_day ?: 1), $periodDate->daysInMonth));
             $dueDate = $periodDate->copy()->day($billingDay);
             $message = $this->renderGeneratedInvoiceMessage($templateContent, $customer, $invoice, $dueDate);
-            $result = $gateway->sendDirect($customer->phone, $message);
+            $result = $gateway->send($customer->phone, $message);
 
             ($result['success'] ?? false) ? $sent++ : $failed++;
 

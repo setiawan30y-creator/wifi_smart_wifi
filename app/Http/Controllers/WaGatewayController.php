@@ -2,11 +2,10 @@
 
 namespace App\Http\Controllers;
 
+use App\Models\Customer;
+use App\Services\WhatsAppGateway;
 use App\Support\Phone;
 use Illuminate\Http\Request;
-use App\Models\Setting;
-use App\Models\Customer;
-use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 class WaGatewayController extends Controller
@@ -14,102 +13,22 @@ class WaGatewayController extends Controller
     /**
      * Send WA message via Fonnte
      */
-    public function send(Request $request)
+    /**
+     * Kirim satu pesan WA (dipanggil dari halaman). Logika kirim ada di App\Services\WhatsAppGateway.
+     */
+    public function send(Request $request, WhatsAppGateway $gateway)
     {
         $request->validate([
             'phone' => 'required|string',
             'message' => 'required|string',
         ]);
 
-        $result = $this->sendDirect($request->phone, $request->message);
+        $result = $gateway->send($request->phone, $request->message);
 
         return response()->json($result, $result['success'] ? 200 : ($result['status'] ?? 400));
     }
 
-    public function sendDirect(string $phone, string $message): array
-    {
-        $gateway = $this->gatewayConfig();
-        $token = $gateway['token'];
-
-        if (empty($token)) {
-            Log::warning('WA gateway token is empty for WA send.', [
-                'tenant_id' => session('tenant_id') ?: auth()->user()?->tenant_id,
-                'user_id' => auth()->id(),
-                'provider' => $gateway['provider'],
-            ]);
-
-            return [
-                'success' => false,
-                'message' => 'Token WA Gateway belum dikonfigurasi di Pengaturan Perusahaan.',
-                'status' => 400,
-            ];
-        }
-
-        $phone = Phone::normalize($phone);
-
-        if (!$phone) {
-            return [
-                'success' => false,
-                'message' => 'Nomor WhatsApp pelanggan belum valid.',
-                'status' => 422,
-            ];
-        }
-
-        try {
-            $payload = [
-                'target' => $phone,
-                'message' => $message,
-                'countryCode' => '62',
-            ];
-
-            $response = $gateway['provider'] === 'fonnte'
-                ? $this->postToFonnte($gateway, $payload)
-                : $this->postToCustomGateway($gateway, $phone, $message);
-
-            $result = $response->json();
-            $isSuccess = $this->gatewayResponseSuccessful($response, $result, $gateway);
-
-            if ($isSuccess) {
-                return [
-                    'success' => true,
-                    'message' => 'Pesan terkirim ke ' . $phone,
-                    'data' => $result,
-                    'status' => 200,
-                ];
-            } else {
-                Log::warning('WA gateway send failed.', [
-                    'target' => $phone,
-                    'provider' => $gateway['provider'],
-                    'http_status' => $response->status(),
-                    'response' => $result ?: $response->body(),
-                ]);
-
-                return [
-                    'success' => false,
-                    'message' => $result['reason'] ?? $result['message'] ?? 'Gagal mengirim pesan',
-                    'data' => $result,
-                    'status' => 400,
-                ];
-            }
-        } catch (\Exception $e) {
-            Log::error('WA gateway connection error.', [
-                'target' => $phone,
-                'provider' => $gateway['provider'],
-                'error' => $e->getMessage(),
-            ]);
-
-            $message = $this->friendlyConnectionError($e->getMessage());
-
-            return [
-                'success' => false,
-                'message' => $message,
-                'technical_message' => $e->getMessage(),
-                'status' => 500,
-            ];
-        }
-    }
-
-    public function broadcast(Request $request)
+    public function broadcast(Request $request, WhatsAppGateway $gateway)
     {
         $data = $request->validate([
             'customer_ids' => ['required', 'array', 'min:1'],
@@ -118,14 +37,11 @@ class WaGatewayController extends Controller
             'delay' => ['nullable', 'integer', 'min:1', 'max:60'],
         ]);
 
-        $gateway = $this->gatewayConfig();
-        $token = $gateway['token'];
-
-        if (empty($token)) {
+        if (!$gateway->hasToken()) {
             Log::warning('WA gateway token is empty for WA broadcast.', [
                 'tenant_id' => session('tenant_id') ?: auth()->user()?->tenant_id,
                 'user_id' => auth()->id(),
-                'provider' => $gateway['provider'],
+                'provider' => $gateway->config()['provider'],
             ]);
 
             return response()->json([
@@ -146,7 +62,7 @@ class WaGatewayController extends Controller
             ], 422);
         }
 
-        if ($gateway['provider'] !== 'fonnte') {
+        if (!$gateway->isFonnte()) {
             return $this->broadcastViaCustomGateway($gateway, $customers, $data);
         }
 
@@ -180,7 +96,7 @@ class WaGatewayController extends Controller
         $message = $this->prepareBroadcastTemplate($data['message']);
 
         try {
-            $response = $this->postToFonnte($gateway, [
+            $response = $gateway->postToFonnte([
                 'target' => implode(',', $targets),
                 'message' => $message,
                 'delay' => (string) ($data['delay'] ?? 2),
@@ -188,7 +104,7 @@ class WaGatewayController extends Controller
             ]);
 
             $result = $response->json();
-            $isSuccess = $this->gatewayResponseSuccessful($response, $result, $gateway);
+            $isSuccess = $gateway->isSuccessful($response, $result);
 
             if (!$isSuccess) {
                 Log::warning('Fonnte WA broadcast failed.', [
@@ -234,18 +150,14 @@ class WaGatewayController extends Controller
             return false;
         }
 
-        $gateway = $this->gatewayConfig();
-        $token = $gateway['token'];
-        if (empty($token)) {
-            \Illuminate\Support\Facades\Log::error('Fonnte token not configured for QRIS WA.');
+        $gateway = app(WhatsAppGateway::class);
+        if (!$gateway->hasToken()) {
+            Log::error('Fonnte token not configured for QRIS WA.');
             return false;
         }
 
         $customer = $transaction->customer;
-        $phone = preg_replace('/[^0-9]/', '', $customer->phone);
-        if (str_starts_with($phone, '0')) {
-            $phone = '62' . substr($phone, 1);
-        }
+        $phone = (string) Phone::normalize($customer->phone);
 
         $message = "*[TAGIHAN INTERNET]*\n\n";
         $message .= "Yth. Bpk/Ibu *" . $customer->name . "*,\n\n";
@@ -261,17 +173,17 @@ class WaGatewayController extends Controller
         $message .= "Mohon scan *Barcode QRIS* pada gambar di atas untuk melakukan pembayaran. Pembayaran Anda akan diverifikasi secara otomatis oleh sistem.\n\nTerima kasih!";
 
         try {
-            $response = $gateway['provider'] === 'fonnte'
-                ? $this->postToFonnte($gateway, [
-                'target' => $phone,
-                'message' => $message,
-                'url' => $transaction->qr_url,
-                'countryCode' => '62',
-            ])
-                : $this->postToCustomGateway($gateway, $phone, $message);
+            $response = $gateway->isFonnte()
+                ? $gateway->postToFonnte([
+                    'target' => $phone,
+                    'message' => $message,
+                    'url' => $transaction->qr_url,
+                    'countryCode' => '62',
+                ])
+                : $gateway->postToCustomGateway($phone, $message);
 
             $result = $response->json();
-            $isSuccess = $this->gatewayResponseSuccessful($response, $result, $gateway);
+            $isSuccess = $gateway->isSuccessful($response, $result);
 
             if (!$isSuccess) {
                 Log::warning('Fonnte QRIS WA send failed.', [
@@ -288,149 +200,7 @@ class WaGatewayController extends Controller
         }
     }
 
-    private function fonnteToken(): ?string
-    {
-        return $this->gatewayConfig()['token'];
-    }
-
-    private function gatewayConfig(): array
-    {
-        $tenantId = session('tenant_id') ?: auth()->user()?->tenant_id;
-        $setting = function (string $key, $default = null) use ($tenantId) {
-            if ($tenantId) {
-                $value = Setting::withoutGlobalScopes()
-                    ->where('tenant_id', $tenantId)
-                    ->where('key', $key)
-                    ->value('value');
-
-                if (filled($value)) {
-                    return $value;
-                }
-            }
-
-            $value = Setting::withoutGlobalScopes()
-                ->where('key', $key)
-                ->whereNotNull('value')
-                ->where('value', '<>', '')
-                ->orderByRaw('tenant_id IS NULL')
-                ->orderBy('tenant_id')
-                ->value('value');
-
-            return filled($value) ? $value : $default;
-        };
-
-        $fallbackToken = $setting('fonnte_token', '');
-
-        return [
-            'provider' => strtolower((string) $setting('wa_gateway_provider', 'fonnte')),
-            'endpoint' => (string) $setting('wa_gateway_endpoint', 'https://api.fonnte.com/send'),
-            'token' => trim((string) $setting('wa_gateway_token', $fallbackToken)),
-            'auth_header' => (string) $setting('wa_gateway_auth_header', 'Authorization'),
-            'auth_prefix' => (string) $setting('wa_gateway_auth_prefix', ''),
-            'payload_format' => (string) $setting('wa_gateway_payload_format', 'multipart'),
-            'target_field' => (string) $setting('wa_gateway_target_field', 'target'),
-            'message_field' => (string) $setting('wa_gateway_message_field', 'message'),
-            'extra_payload' => $this->decodeExtraPayload((string) $setting('wa_gateway_extra_payload', '{"countryCode":"62"}')),
-            'success_key' => (string) $setting('wa_gateway_success_key', 'status'),
-            'success_value' => (string) $setting('wa_gateway_success_value', 'true'),
-        ];
-    }
-
-    private function decodeExtraPayload(string $json): array
-    {
-        $decoded = json_decode($json, true);
-
-        return is_array($decoded) ? $decoded : [];
-    }
-
-    private function authHeaders(array $gateway): array
-    {
-        $headers = [];
-        $header = trim($gateway['auth_header'] ?? '');
-        $token = trim($gateway['token'] ?? '');
-
-        if ($header !== '' && $token !== '') {
-            $prefix = trim($gateway['auth_prefix'] ?? '');
-            $headers[$header] = $prefix !== '' ? $prefix . ' ' . $token : $token;
-        }
-
-        return $headers;
-    }
-
-    private function gatewayResponseSuccessful($response, ?array $result, array $gateway): bool
-    {
-        if (!$response->successful()) {
-            return false;
-        }
-
-        $successKey = trim($gateway['success_key'] ?? '');
-        if ($successKey === '') {
-            return true;
-        }
-
-        $actual = data_get($result ?? [], $successKey);
-        $expected = strtolower(trim((string) ($gateway['success_value'] ?? 'true')));
-
-        return strtolower(trim((string) $actual)) === $expected
-            || ($expected === 'true' && in_array($actual, [true, 1, '1'], true))
-            || ($expected === '1' && in_array($actual, [true, 1, '1'], true));
-    }
-
-    private function postToFonnte(array $gateway, array $payload)
-    {
-        $payload = array_merge($gateway['extra_payload'], $payload);
-
-        return Http::withHeaders($this->authHeaders($gateway))
-            ->connectTimeout(15)
-            ->timeout(30)
-            ->send('POST', $gateway['endpoint'] ?: 'https://api.fonnte.com/send', [
-                'multipart' => collect($payload)->map(fn ($value, $key) => [
-                    'name' => $key,
-                    'contents' => (string) $value,
-                ])->values()->all(),
-            ]);
-    }
-
-    private function postToCustomGateway(array $gateway, string $phone, string $message)
-    {
-        $payload = array_merge($gateway['extra_payload'], [
-            $gateway['target_field'] ?: 'target' => $phone,
-            $gateway['message_field'] ?: 'message' => $message,
-        ]);
-
-        $request = Http::withHeaders($this->authHeaders($gateway))
-            ->connectTimeout(15)
-            ->timeout(30);
-        $endpoint = $gateway['endpoint'];
-
-        return match ($gateway['payload_format']) {
-            'json' => $request->asJson()->post($endpoint, $payload),
-            'form' => $request->asForm()->post($endpoint, $payload),
-            default => $request->send('POST', $endpoint, [
-                'multipart' => collect($payload)->map(fn ($value, $key) => [
-                    'name' => $key,
-                    'contents' => (string) $value,
-                ])->values()->all(),
-            ]),
-        };
-    }
-
-    private function friendlyConnectionError(string $error): string
-    {
-        $lower = strtolower($error);
-
-        if (str_contains($lower, 'resolving timed out') || str_contains($lower, 'could not resolve host')) {
-            return 'WA belum terkirim karena server belum bisa mengakses DNS/Internet menuju WA Gateway. Pembayaran tetap berhasil tersimpan.';
-        }
-
-        if (str_contains($lower, 'connection timed out') || str_contains($lower, 'operation timed out')) {
-            return 'WA belum terkirim karena koneksi server ke WA Gateway timeout. Pembayaran tetap berhasil tersimpan.';
-        }
-
-        return 'WA belum terkirim karena koneksi ke WA Gateway sedang bermasalah. Pembayaran tetap berhasil tersimpan.';
-    }
-
-    private function broadcastViaCustomGateway(array $gateway, $customers, array $data)
+    private function broadcastViaCustomGateway(WhatsAppGateway $gateway, $customers, array $data)
     {
         $sent = 0;
         $failed = 0;
@@ -447,10 +217,10 @@ class WaGatewayController extends Controller
             $message = $this->renderCustomerMessage($data['message'], $customer);
 
             try {
-                $response = $this->postToCustomGateway($gateway, $phone, $message);
+                $response = $gateway->postToCustomGateway($phone, $message);
                 $result = $response->json();
 
-                if ($this->gatewayResponseSuccessful($response, $result, $gateway)) {
+                if ($gateway->isSuccessful($response, $result)) {
                     $sent++;
                 } else {
                     $failed++;
@@ -494,7 +264,6 @@ class WaGatewayController extends Controller
             '{jumlah}' => $latestInvoice ? 'Rp ' . number_format((int) $latestInvoice->amount, 0, ',', '.') : ($customer->package ? 'Rp ' . number_format((int) $customer->package->price, 0, ',', '.') : '0'),
         ]);
     }
-
 
     private function prepareBroadcastTemplate(string $message): string
     {
