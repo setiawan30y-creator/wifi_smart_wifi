@@ -30,7 +30,7 @@ class ImportMikrotikSecrets extends Command
      */
     public function handle()
     {
-        $router = Router::where('status', 'online')->first();
+        $router = Router::active();
         if (!$router) {
             $this->error('Tidak ada router yang online.');
             return;

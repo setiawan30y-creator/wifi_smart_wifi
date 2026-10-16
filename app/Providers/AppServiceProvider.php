@@ -2,8 +2,13 @@
 
 namespace App\Providers;
 
-use Illuminate\Support\ServiceProvider;
+use App\Support\Tenancy\TenantContext;
+use Illuminate\Auth\Events\Authenticated;
+use Illuminate\Auth\Events\Login;
+use Illuminate\Auth\Events\Logout;
+use Illuminate\Support\Facades\Event;
 use Illuminate\Support\Facades\URL;
+use Illuminate\Support\ServiceProvider;
 
 class AppServiceProvider extends ServiceProvider
 {
@@ -12,7 +17,7 @@ class AppServiceProvider extends ServiceProvider
      */
     public function register(): void
     {
-        //
+        $this->app->singleton(TenantContext::class);
     }
 
     /**
@@ -20,6 +25,16 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Tenant aktif mengikuti user yang login.
+        $setTenantFromUser = function ($event) {
+            if ($event->user && $event->user->tenant_id) {
+                app(TenantContext::class)->set((int) $event->user->tenant_id);
+            }
+        };
+        Event::listen(Authenticated::class, $setTenantFromUser);
+        Event::listen(Login::class, $setTenantFromUser);
+        Event::listen(Logout::class, fn () => app(TenantContext::class)->forget());
+
         if ($this->shouldForceHttpsScheme()) {
             URL::forceScheme('https');
         }

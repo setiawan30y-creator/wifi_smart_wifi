@@ -31,6 +31,8 @@ class UserFactory extends Factory
             'password' => static::$password ??= Hash::make('password'),
             'remember_token' => Str::random(10),
             'role' => 'admin',
+            'tenant_id' => fn () => \App\Models\Tenant::query()->orderBy('id')->value('id')
+                ?? \App\Models\Tenant::create(['name' => 'Perusahaan Uji', 'status' => 'active'])->id,
         ];
     }
 

@@ -4,34 +4,45 @@ namespace App\Models\Traits;
 
 use App\Models\Scopes\TenantScope;
 use App\Models\Tenant;
-use Illuminate\Support\Facades\Session;
+use App\Support\Tenancy\TenantContext;
+use Illuminate\Database\Eloquent\Builder;
+use LogicException;
 
 trait BelongsToTenant
 {
-    /**
-     * The "booted" method of the model.
-     */
     protected static function bootBelongsToTenant(): void
     {
         static::addGlobalScope(new TenantScope);
 
         static::creating(function ($model) {
-            $tenantId = Session::get('tenant_id');
-            if (!$tenantId && auth()->check()) {
-                $tenantId = auth()->user()->tenant_id;
+            if (!empty($model->tenant_id)) {
+                return;
             }
 
-            if ($tenantId && !$model->tenant_id) {
+            $tenantId = app(TenantContext::class)->id();
+
+            if ($tenantId) {
                 $model->tenant_id = $tenantId;
+                return;
+            }
+
+            if (!app()->runningInConsole()) {
+                throw new LogicException('Tidak bisa menyimpan ' . class_basename($model) . ' tanpa tenant aktif.');
             }
         });
     }
 
-    /**
-     * Get the tenant that owns the model.
-     */
     public function tenant()
     {
         return $this->belongsTo(Tenant::class);
+    }
+
+    /**
+     * Query untuk tenant tertentu tanpa bergantung pada tenant yang sedang aktif.
+     */
+    public static function forTenant(int $tenantId): Builder
+    {
+        return static::withoutGlobalScope(TenantScope::class)
+            ->where((new static)->qualifyColumn('tenant_id'), $tenantId);
     }
 }

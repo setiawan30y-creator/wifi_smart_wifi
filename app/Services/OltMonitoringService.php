@@ -60,7 +60,7 @@ class OltMonitoringService
             ];
         }
 
-        $router = Router::where('status', 'online')->first();
+        $router = Router::active();
         if (!$router) {
             return [
                 'success' => false,

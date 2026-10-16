@@ -241,9 +241,8 @@ class WhatsAppGateway
 
     private function currentTenantId(): ?int
     {
-        $tenantId = session('tenant_id') ?: auth()->user()?->tenant_id;
-
-        return $tenantId ? (int) $tenantId : null;
+        return app(\App\Support\Tenancy\TenantContext::class)->id()
+            ?? (auth()->user()?->tenant_id ? (int) auth()->user()->tenant_id : null);
     }
 
     private function authHeaders(): array

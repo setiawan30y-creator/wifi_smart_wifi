@@ -53,7 +53,7 @@ class PackageController extends Controller
         $package = Package::create($request->all());
 
         // Sync to MikroTik
-        $router = Router::where('status', 'online')->first();
+        $router = Router::active();
         if ($router) {
             $mikrotikService = new MikrotikService($router);
             $rateLimit = $this->parseSpeedToRateLimit($package->speed);
@@ -79,7 +79,7 @@ class PackageController extends Controller
         $package->update($request->all());
 
         // Sync to MikroTik
-        $router = Router::where('status', 'online')->first();
+        $router = Router::active();
         if ($router) {
             $mikrotikService = new MikrotikService($router);
             $rateLimit = $this->parseSpeedToRateLimit($package->speed);
@@ -102,7 +102,7 @@ class PackageController extends Controller
         $package->delete();
 
         // Sync to MikroTik
-        $router = Router::where('status', 'online')->first();
+        $router = Router::active();
         if ($router) {
             $mikrotikService = new MikrotikService($router);
             $mikrotikService->deletePppoeProfile($name);

@@ -75,7 +75,7 @@ class PackageService
 
     private function onlineRouter(): ?Router
     {
-        return Router::where('status', 'online')->first();
+        return Router::active();
     }
 
     private function syncCreateToMikrotik(Package $package): void

@@ -13,7 +13,7 @@ class MikrotikService
 
     public function __construct(?Router $router = null)
     {
-        $this->router = $router ?? Router::where('status', 'online')->first();
+        $this->router = $router ?? Router::active();
     }
 
     /**

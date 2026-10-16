@@ -3,12 +3,13 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\Crypt;
 
 class Router extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToTenant;
 
     protected $fillable = [
         'name',
@@ -19,6 +20,15 @@ class Router extends Model
         'description',
         'status',
     ];
+
+    /**
+     * Router MikroTik yang dipakai tenant aktif (router online pertama).
+     * Satu-satunya tempat untuk memilih router; dulu ditulis berulang di banyak file.
+     */
+    public static function active(): ?self
+    {
+        return static::query()->where('status', 'online')->orderBy('id')->first();
+    }
 
     public static function normalizeHost(?string $value): ?string
     {

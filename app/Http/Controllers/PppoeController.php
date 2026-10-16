@@ -12,7 +12,7 @@ class PppoeController extends Controller
 {
     public function index(Request $request)
     {
-        $router = Router::where('status', 'online')->first();
+        $router = Router::active();
         
         $query = Customer::whereNotNull('pppoe_username')->with(['package', 'odp']);
 
@@ -149,7 +149,7 @@ class PppoeController extends Controller
     public function import(Request $request)
     {
         // This is the direct API import which might timeout for large data
-        $router = Router::where('status', 'online')->first();
+        $router = Router::active();
         if (!$router) {
             return redirect()->route('pppoe.index')->with('error', 'Tidak ada router yang online.');
         }
@@ -265,7 +265,7 @@ class PppoeController extends Controller
 
     public function create()
     {
-        $router = Router::where('status', 'online')->first();
+        $router = Router::active();
         
         if ($router) {
             $mikrotikService = new MikrotikService($router);
@@ -315,7 +315,7 @@ class PppoeController extends Controller
             }
         }
 
-        $router = Router::where('status', 'online')->first();
+        $router = Router::active();
         if (!$router) {
             return redirect()->route('pppoe.index')->with('error', 'Router sedang offline. Tidak dapat menambahkan rahasia PPPoE.');
         }
@@ -383,7 +383,7 @@ class PppoeController extends Controller
 
     public function destroy(Request $request, $id)
     {
-        $router = Router::where('status', 'online')->first();
+        $router = Router::active();
         if (!$router) {
             return redirect()->route('pppoe.index')->with('error', 'Router sedang offline.');
         }
@@ -411,7 +411,7 @@ class PppoeController extends Controller
             return redirect()->route('pppoe.index')->with('error', 'Pelanggan ini bukan pengguna PPPoE aktif.');
         }
         
-        $router = Router::where('status', 'online')->first();
+        $router = Router::active();
         $packages = Package::all();
         $availableCustomers = Customer::where(function ($query) use ($customer) {
                 $query->whereNull('pppoe_username')
@@ -436,7 +436,7 @@ class PppoeController extends Controller
             'customer_id' => 'required|exists:customers,id',
         ]);
 
-        $router = Router::where('status', 'online')->first();
+        $router = Router::active();
         if (!$router) {
             return back()->with('error', 'Router offline. Tidak dapat mengubah data di MikroTik.');
         }
@@ -491,7 +491,7 @@ class PppoeController extends Controller
             return back()->with('error', 'Pelanggan ini bukan pengguna PPPoE aktif.');
         }
 
-        $router = Router::where('status', 'online')->first();
+        $router = Router::active();
         if (!$router) {
             return back()->with('error', 'Router sedang offline.');
         }

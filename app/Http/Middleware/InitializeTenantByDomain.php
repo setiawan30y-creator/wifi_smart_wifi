@@ -5,8 +5,7 @@ namespace App\Http\Middleware;
 use Closure;
 use Illuminate\Http\Request;
 use App\Models\Tenant;
-use Illuminate\Support\Facades\Session;
-use Illuminate\Support\Facades\Auth;
+use App\Support\Tenancy\TenantContext;
 
 class InitializeTenantByDomain
 {
@@ -15,13 +14,16 @@ class InitializeTenantByDomain
      */
     public function handle(Request $request, Closure $next)
     {
+        $context = app(TenantContext::class);
         $host = $request->getHost();
         $baseHost = parse_url(config('app.url'), PHP_URL_HOST) ?? 'billing_rtrw.test';
 
         // Jika mengakses domain pusat
         if ($host === $baseHost) {
-            // Hapus session tenant jika ada
-            Session::forget('tenant_id');
+            // Domain pusat: tenant mengikuti user yang login (null jika belum login).
+            $context->forget();
+            $context->set(auth()->user()?->tenant_id ? (int) auth()->user()->tenant_id : null);
+
             return $next($request);
         }
 
@@ -37,8 +39,7 @@ class InitializeTenantByDomain
             return response('Perusahaan Anda sedang dinonaktifkan.', 403);
         }
 
-        // Set session tenant
-        Session::put('tenant_id', $tenant->id);
+        $context->set($tenant->id);
 
         return $next($request);
     }

@@ -3,11 +3,12 @@
 namespace App\Models;
 
 use Illuminate\Database\Eloquent\Factories\HasFactory;
+use App\Models\Traits\BelongsToTenant;
 use Illuminate\Database\Eloquent\Model;
 
 class WalletTransaction extends Model
 {
-    use HasFactory;
+    use HasFactory, BelongsToTenant;
 
     protected $guarded = ['id'];
 

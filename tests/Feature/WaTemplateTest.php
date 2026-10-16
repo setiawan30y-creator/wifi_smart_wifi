@@ -17,6 +17,8 @@ class WaTemplateTest extends TestCase
     {
         parent::setUp();
         $this->user = User::factory()->create();
+        // Login lebih dulu agar data uji tersimpan pada tenant user ini.
+        $this->actingAs($this->user);
     }
 
     /**

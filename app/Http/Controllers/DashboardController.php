@@ -104,7 +104,7 @@ class DashboardController extends Controller
             'checked' => false,
         ];
 
-        $router = Router::where('status', 'online')->first();
+        $router = Router::active();
         if ($router && $mikrotikStats['total'] > 0) {
             $mikrotikService = new MikrotikService($router);
             $usernames = $pppoeCustomers->where('status', 'active')->pluck('pppoe_username')->filter()->values()->toArray();
@@ -185,7 +185,7 @@ class DashboardController extends Controller
         $interfaces = explode(',', $interfacesStr);
         $interfaces = array_values(array_filter(array_map('trim', $interfaces)));
 
-        $router = Router::where('status', 'online')->first() ?? Router::query()->latest('id')->first();
+        $router = Router::active() ?? Router::query()->latest('id')->first();
 
         if (!$router) {
             return response()->json([

@@ -20,6 +20,9 @@ class SettingsAndSecurityTest extends TestCase
     {
         parent::setUp();
 
+        // Data uji disimpan pada tenant bawaan (dibuat oleh migrasi).
+        app(\App\Support\Tenancy\TenantContext::class)->set(1);
+
         // Seed settings
         Setting::set('company_name', 'Billing RT/RW Test');
         
