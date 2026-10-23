@@ -17,7 +17,8 @@ use Illuminate\Support\Facades\Log;
  * Billing otomatis per tenant:
  *  1. Generate tagihan bulan berjalan (H- sekian hari sebelum jatuh tempo), sekali sehari
  *     setelah jam yang diatur.
- *  2. Pengingat WA tagihan lewat jatuh tempo (maks. N kali, sekali per hari).
+ *  2. Pengingat WA tagihan belum lunas: sebelum jatuh tempo (H-) dan sesudahnya (H+),
+ *     sesuai ReminderSchedule, mulai jam pengingat yang diatur.
  *  3. Pengingat WA janji bayar (sekali).
  *
  * Semua query berjalan di dalam TenantContext tenant tersebut, dan WA dikirim lewat
@@ -62,11 +63,7 @@ class BillingAutomation
                 $this->say("Tenant {$tenant->id}: generate otomatis belum aktif.");
             }
 
-            if ($this->truthy($settings['billing_overdue_wa_enabled'] ?? false)) {
-                $this->overdueReminders($tenant, $settings, $gateway, $now);
-            } else {
-                $this->say("Tenant {$tenant->id}: reminder jatuh tempo belum aktif.");
-            }
+            $this->reminders($tenant, $settings, $gateway, $now);
 
             $this->paymentPromiseReminders($tenant, $settings, $gateway, $now);
         });
@@ -131,55 +128,34 @@ class BillingAutomation
         Log::info('Billing automation generated invoices.', ['tenant_id' => $tenant->id] + $counts);
     }
 
-    private function overdueReminders(Tenant $tenant, array $settings, WhatsAppGateway $gateway, Carbon $now): void
+    private function reminders(Tenant $tenant, array $settings, WhatsAppGateway $gateway, Carbon $now): void
     {
-        if (!$gateway->hasToken()) {
-            $this->say("Tenant {$tenant->id}: reminder jatuh tempo dilewati, token WA kosong.");
+        $schedule = ReminderSchedule::fromSettings($settings);
+
+        if (!$schedule->beforeEnabled && !$schedule->afterEnabled) {
+            $this->say("Tenant {$tenant->id}: pengingat tagihan belum aktif.");
             return;
         }
 
-        $daysAfterDue = (int) ($settings['billing_overdue_days_after_due'] ?? 1);
-        $maxReminders = (int) ($settings['billing_overdue_max_reminders'] ?? 3);
-        $template = $this->template($settings['billing_overdue_wa_template_id'] ?? null)?->content;
-        [$delayMin, $delayMax] = $this->delays($settings);
-        $sent = 0;
-
-        $invoices = Invoice::query()
-            ->with('customer.odp')
-            ->where('status', 'unpaid')
-            ->where(fn ($q) => $q->whereNull('overdue_reminder_count')->orWhere('overdue_reminder_count', '<', $maxReminders))
-            ->get();
-
-        foreach ($invoices as $invoice) {
-            $customer = $invoice->customer;
-
-            if (!$customer || !$customer->phone || !$customer->isBillable()) {
-                continue;
-            }
-
-            if ($invoice->last_overdue_reminder_sent_at?->isSameDay($now)) {
-                continue;
-            }
-
-            $dueDate = DueDate::for($customer, (int) $invoice->month, (int) $invoice->year);
-            if ($now->copy()->startOfDay()->lt($dueDate->copy()->addDays($daysAfterDue))) {
-                continue;
-            }
-
-            $message = BillingMessages::invoice($template, $customer, $invoice, $dueDate, BillingMessages::DEFAULT_OVERDUE);
-
-            if ($gateway->send($customer->phone, $message)['success'] ?? false) {
-                $invoice->forceFill([
-                    'overdue_reminder_count' => (int) $invoice->overdue_reminder_count + 1,
-                    'last_overdue_reminder_sent_at' => $now,
-                ])->save();
-                $sent++;
-                $this->pause($delayMin, $delayMax);
-            }
+        if (!$gateway->hasToken()) {
+            $this->say("Tenant {$tenant->id}: pengingat tagihan dilewati, token WA kosong.");
+            return;
         }
 
-        $this->say("Tenant {$tenant->id}: {$sent} reminder jatuh tempo dikirim.");
-        Log::info('Billing automation sent overdue reminders.', ['tenant_id' => $tenant->id, 'sent' => $sent]);
+        if ($now->format('H:i') < $schedule->time) {
+            $this->say("Tenant {$tenant->id}: pengingat tagihan menunggu jam {$schedule->time}.");
+            return;
+        }
+
+        [$delayMin, $delayMax] = $this->delays($settings);
+        $generateSendsWa = $this->truthy($settings['billing_auto_generate_enabled'] ?? false)
+            && $this->truthy($settings['billing_auto_generate_send_wa'] ?? false);
+
+        $sender = new InvoiceReminderSender($gateway, $schedule, $generateSendsWa, fn () => $this->pause($delayMin, $delayMax));
+        $counts = $sender->send($now);
+
+        $this->say("Tenant {$tenant->id}: {$counts['before']} pengingat sebelum jatuh tempo, {$counts['after']} sesudah jatuh tempo, {$counts['failed']} gagal.");
+        Log::info('Billing automation sent invoice reminders.', ['tenant_id' => $tenant->id] + $counts);
     }
 
     private function paymentPromiseReminders(Tenant $tenant, array $settings, WhatsAppGateway $gateway, Carbon $now): void

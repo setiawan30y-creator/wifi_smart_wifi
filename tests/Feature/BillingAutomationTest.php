@@ -46,6 +46,7 @@ class BillingAutomationTest extends TestCase
                 'billing_overdue_wa_enabled' => '1',
                 'billing_overdue_days_after_due' => '1',
                 'billing_overdue_max_reminders' => '2',
+                'billing_reminder_time' => '02:00',
             ] as $key => $value) {
                 Setting::set($key, $value);
             }
@@ -167,9 +168,10 @@ class BillingAutomationTest extends TestCase
 
     public function test_overdue_reminder_is_sent_once_per_day_up_to_max(): void
     {
-        $customer = $this->customer(['billing_day' => 1]);
+        // Pengaturan lama "mulai H+1, maks. 2 kali" => tahap H+1 dan H+2.
+        $customer = $this->customer(['billing_day' => 2]);
         $invoice = $this->inTenant(1, fn () => Invoice::create([
-            'customer_id' => $customer->id, 'month' => 9, 'year' => 2026, 'amount' => 150000, 'status' => 'unpaid',
+            'customer_id' => $customer->id, 'month' => 10, 'year' => 2026, 'amount' => 150000, 'status' => 'unpaid',
         ]));
         Setting::forTenant(1)->where('key', 'billing_auto_generate_enabled')->update(['value' => '0']);
 

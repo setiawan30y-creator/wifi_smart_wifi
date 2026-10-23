@@ -13,6 +13,7 @@ use Illuminate\Support\Carbon;
  * {jumlah} {nominal} {tanggal_jatuh_tempo} {odp} {nama_odp}
  * Janji bayar: {tanggal_janji_bayar} {catatan_janji_bayar}
  * Pesan gabungan: {rincian_tagihan} {jumlah_pelanggan}
+ * Pengingat: {sisa_hari} (sebelum jatuh tempo), {hari_terlambat} (sesudah jatuh tempo)
  */
 final class BillingMessages
 {
@@ -20,13 +21,46 @@ final class BillingMessages
 
     public const DEFAULT_OVERDUE = "Halo {nama_pelanggan},\n\nKami informasikan tagihan internet periode {periode} masih belum lunas.\nNo. Invoice: {nomor_tagihan}\nJumlah: {nominal}\nJatuh tempo: {tanggal_jatuh_tempo}\n\nMohon segera melakukan pembayaran. Terima kasih.";
 
+    public const DEFAULT_BEFORE_DUE = "Halo {nama_pelanggan},\n\nMengingatkan tagihan internet periode {periode} akan jatuh tempo {sisa_hari}.\nNo. Invoice: {nomor_tagihan}\nJumlah: {nominal}\nJatuh tempo: {tanggal_jatuh_tempo}\n\nAbaikan pesan ini jika sudah membayar. Terima kasih.";
+
     public const DEFAULT_PAYMENT_PROMISE = "Halo {nama_pelanggan},\n\nKami ingatkan kembali janji pembayaran internet Anda pada tanggal {tanggal_janji_bayar}.\n\nNo. Invoice: {nomor_tagihan}\nPeriode: {periode}\nNominal: {nominal}\nCatatan: {catatan_janji_bayar}\n\nMohon melakukan pembayaran sesuai janji. Jika sudah membayar, abaikan pesan ini. Terima kasih.";
 
-    public static function invoice(?string $template, Customer $customer, Invoice $invoice, Carbon $dueDate, string $fallback = self::DEFAULT_GENERATED): string
+    public static function invoice(?string $template, Customer $customer, Invoice $invoice, Carbon $dueDate, string $fallback = self::DEFAULT_GENERATED, array $extra = []): string
     {
         $message = trim((string) $template) !== '' ? (string) $template : $fallback;
 
-        return strtr($message, self::invoicePlaceholders($customer, $invoice, $dueDate));
+        return strtr($message, $extra + self::invoicePlaceholders($customer, $invoice, $dueDate));
+    }
+
+    /**
+     * Pengingat sebelum jatuh tempo. $daysUntilDue 0 = hari ini.
+     */
+    public static function beforeDue(?string $template, Customer $customer, Invoice $invoice, Carbon $dueDate, int $daysUntilDue): string
+    {
+        return self::invoice($template, $customer, $invoice, $dueDate, self::DEFAULT_BEFORE_DUE, [
+            '{sisa_hari}' => self::daysLeftText($daysUntilDue),
+            '{hari_terlambat}' => '0',
+        ]);
+    }
+
+    /**
+     * Pengingat sesudah jatuh tempo untuk satu tagihan.
+     */
+    public static function overdue(?string $template, Customer $customer, Invoice $invoice, Carbon $dueDate, int $daysOverdue): string
+    {
+        return self::invoice($template, $customer, $invoice, $dueDate, self::DEFAULT_OVERDUE, [
+            '{sisa_hari}' => '-',
+            '{hari_terlambat}' => (string) $daysOverdue,
+        ]);
+    }
+
+    public static function daysLeftText(int $days): string
+    {
+        return match (true) {
+            $days <= 0 => 'hari ini',
+            $days === 1 => 'besok',
+            default => "dalam {$days} hari",
+        };
     }
 
     public static function paymentPromise(?string $template, Customer $customer, Invoice $invoice, Carbon $dueDate): string
@@ -89,7 +123,7 @@ final class BillingMessages
      * Pesan tunggakan untuk satu pelanggan dengan beberapa tagihan belum lunas
      * (urut dari yang tertua). Placeholder tambahan: {jumlah_tunggakan}.
      */
-    public static function arrears(?string $template, Customer $customer, \Illuminate\Support\Collection $unpaidInvoices): string
+    public static function arrears(?string $template, Customer $customer, \Illuminate\Support\Collection $unpaidInvoices, int $daysOverdue = 0): string
     {
         $message = trim((string) $template) !== '' ? (string) $template : self::DEFAULT_ARREARS;
         $oldest = $unpaidInvoices->first();
@@ -110,6 +144,9 @@ final class BillingMessages
             '{nominal}' => $total,
             '{jumlah}' => $total,
             '{jumlah_tunggakan}' => (string) $unpaidInvoices->count(),
+            '{hari_terlambat}' => (string) $daysOverdue,
+            '{sisa_hari}' => '-',
+            '{tahun}' => (string) ($oldest->year ?? ''),
             '{tanggal_jatuh_tempo}' => $oldest ? DueDate::for($customer, (int) $oldest->month, (int) $oldest->year)->translatedFormat('d F Y') : '-',
             '{nama_odp}' => $odpName,
             '{odp}' => $odpName,

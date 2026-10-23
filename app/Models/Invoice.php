@@ -43,6 +43,11 @@ class Invoice extends Model
         return $this->belongsTo(Customer::class);
     }
 
+    public function reminders()
+    {
+        return $this->hasMany(InvoiceReminder::class);
+    }
+
     protected static function boot()
     {
         parent::boot();
