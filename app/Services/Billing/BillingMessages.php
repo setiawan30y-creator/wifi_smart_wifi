@@ -25,9 +25,34 @@ final class BillingMessages
 
     public const DEFAULT_PAYMENT_PROMISE = "Halo {nama_pelanggan},\n\nKami ingatkan kembali janji pembayaran internet Anda pada tanggal {tanggal_janji_bayar}.\n\nNo. Invoice: {nomor_tagihan}\nPeriode: {periode}\nNominal: {nominal}\nCatatan: {catatan_janji_bayar}\n\nMohon melakukan pembayaran sesuai janji. Jika sudah membayar, abaikan pesan ini. Terima kasih.";
 
-    public static function invoice(?string $template, Customer $customer, Invoice $invoice, Carbon $dueDate, string $fallback = self::DEFAULT_GENERATED, array $extra = []): string
+    /** Jenis pesan bawaan yang isinya bisa diubah tenant (setting billing_message_{jenis}). */
+    public const EDITABLE = [
+        'generated' => self::DEFAULT_GENERATED,
+        'before' => self::DEFAULT_BEFORE_DUE,
+        'after' => self::DEFAULT_OVERDUE,
+        'arrears' => self::DEFAULT_ARREARS,
+        'promise' => self::DEFAULT_PAYMENT_PROMISE,
+    ];
+
+    /**
+     * Teks pesan bawaan: versi yang diubah tenant bila ada, jika tidak teks asli.
+     */
+    public static function defaultText(string $type): string
     {
-        $message = trim((string) $template) !== '' ? (string) $template : $fallback;
+        $original = self::EDITABLE[$type] ?? self::DEFAULT_GENERATED;
+
+        try {
+            $custom = \App\Models\Setting::get('billing_message_' . $type);
+        } catch (\Throwable) {
+            $custom = null;
+        }
+
+        return trim((string) $custom) !== '' ? (string) $custom : $original;
+    }
+
+    public static function invoice(?string $template, Customer $customer, Invoice $invoice, Carbon $dueDate, ?string $fallback = null, array $extra = []): string
+    {
+        $message = trim((string) $template) !== '' ? (string) $template : ($fallback ?? self::defaultText('generated'));
 
         return strtr($message, $extra + self::invoicePlaceholders($customer, $invoice, $dueDate));
     }
@@ -37,7 +62,7 @@ final class BillingMessages
      */
     public static function beforeDue(?string $template, Customer $customer, Invoice $invoice, Carbon $dueDate, int $daysUntilDue): string
     {
-        return self::invoice($template, $customer, $invoice, $dueDate, self::DEFAULT_BEFORE_DUE, [
+        return self::invoice($template, $customer, $invoice, $dueDate, self::defaultText('before'), [
             '{sisa_hari}' => self::daysLeftText($daysUntilDue),
             '{hari_terlambat}' => '0',
         ]);
@@ -48,7 +73,7 @@ final class BillingMessages
      */
     public static function overdue(?string $template, Customer $customer, Invoice $invoice, Carbon $dueDate, int $daysOverdue): string
     {
-        return self::invoice($template, $customer, $invoice, $dueDate, self::DEFAULT_OVERDUE, [
+        return self::invoice($template, $customer, $invoice, $dueDate, self::defaultText('after'), [
             '{sisa_hari}' => '-',
             '{hari_terlambat}' => (string) $daysOverdue,
         ]);
@@ -65,7 +90,7 @@ final class BillingMessages
 
     public static function paymentPromise(?string $template, Customer $customer, Invoice $invoice, Carbon $dueDate): string
     {
-        $message = trim((string) $template) !== '' ? (string) $template : self::DEFAULT_PAYMENT_PROMISE;
+        $message = trim((string) $template) !== '' ? (string) $template : self::defaultText('promise');
         $promiseDate = Carbon::parse($invoice->payment_promise_date);
 
         return strtr($message, self::invoicePlaceholders($customer, $invoice, $dueDate) + [
@@ -125,7 +150,7 @@ final class BillingMessages
      */
     public static function arrears(?string $template, Customer $customer, \Illuminate\Support\Collection $unpaidInvoices, int $daysOverdue = 0): string
     {
-        $message = trim((string) $template) !== '' ? (string) $template : self::DEFAULT_ARREARS;
+        $message = trim((string) $template) !== '' ? (string) $template : self::defaultText('arrears');
         $oldest = $unpaidInvoices->first();
         $numbers = $unpaidInvoices->pluck('invoice_number')->implode(', ');
         $periods = $unpaidInvoices

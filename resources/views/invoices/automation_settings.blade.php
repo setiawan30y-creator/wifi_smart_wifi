@@ -145,6 +145,13 @@
     .ba-bubble { position: relative; white-space: pre-wrap; word-break: break-word; font-size: .76rem; line-height: 1.15rem; color: var(--ba-bubble-text); background: var(--ba-bubble); border-radius: .75rem .75rem .2rem .75rem; padding: .6rem .7rem 1.15rem; max-height: 16rem; overflow: auto; }
     .ba-bubble small { position: absolute; right: .6rem; bottom: .3rem; font-size: .62rem; opacity: .65; }
 
+    .ba-edit { margin-top: .6rem; }
+    .ba-edit > summary { display: flex; align-items: center; gap: .4rem; font-size: .72rem; font-weight: 700; color: var(--ba-muted); }
+    .ba-edit > summary:hover { color: var(--ba-strong); }
+    .ba-edit[open] > summary { color: var(--ba-strong); }
+    .ba-textarea { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: .74rem !important; line-height: 1.15rem; resize: vertical; min-height: 9rem; }
+    .ba-tag[hidden] { display: none; }
+
     /* Alur */
     .ba-flow { display: flex; overflow-x: auto; padding: .25rem 0 .1rem; scrollbar-width: thin; }
     .ba-flow-step { flex: 1 0 4.6rem; display: flex; flex-direction: column; align-items: center; gap: .35rem; position: relative; text-align: center; }
@@ -383,10 +390,7 @@
                                 @endif
                             </div>
                         </div>
-                        <div class="ba-chat">
-                            <div class="ba-chat-head"><span>Contoh pesan</span><span data-preview-name="generated"></span></div>
-                            <div class="ba-bubble"><span data-preview-text="generated"></span><small>09.00</small></div>
-                        </div>
+                        @include('invoices.partials.default-message', ['type' => 'generated', 'title' => 'Contoh pesan', 'time' => '09.00'])
                     </div>
                 </section>
 
@@ -431,10 +435,7 @@
                                 @error('billing_reminder_before_wa_template_id')<div class="ba-error">{{ $message }}</div>@enderror
                             </div>
                         </div>
-                        <div class="ba-chat">
-                            <div class="ba-chat-head"><span>Contoh pesan · H-1</span><span data-preview-name="before"></span></div>
-                            <div class="ba-bubble"><span data-preview-text="before"></span><small>08.00</small></div>
-                        </div>
+                        @include('invoices.partials.default-message', ['type' => 'before', 'title' => 'Contoh pesan · H-1', 'time' => '08.00'])
                     </div>
                 </section>
 
@@ -479,9 +480,9 @@
                                 @error('billing_overdue_wa_template_id')<div class="ba-error">{{ $message }}</div>@enderror
                             </div>
                         </div>
-                        <div class="ba-chat">
-                            <div class="ba-chat-head"><span>Contoh pesan · H+3</span><span data-preview-name="after"></span></div>
-                            <div class="ba-bubble"><span data-preview-text="after"></span><small>08.00</small></div>
+                        <div class="space-y-3">
+                            @include('invoices.partials.default-message', ['type' => 'after', 'title' => 'Contoh pesan · H+3', 'time' => '08.00'])
+                            @include('invoices.partials.default-message', ['type' => 'arrears', 'title' => 'Pesan bila tunggakan lebih dari 1 bulan', 'time' => '08.00', 'compact' => true])
                         </div>
                     </div>
                 </section>
@@ -527,13 +528,9 @@
                                 <option value="{{ $template['id'] }}" @selected((int) $val('billing_payment_promise_wa_template_id') === $template['id'])>{{ $template['title'] }}</option>
                             @endforeach
                         </select>
-                        <details class="mt-2">
-                            <summary class="flex items-center gap-1 text-xs font-semibold" style="color: var(--ba-primary)">
-                                <svg class="ba-caret h-3 w-3" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 5l7 7-7 7"/></svg>
-                                Contoh pesan
-                            </summary>
-                            <div class="ba-bubble mt-2"><span data-preview-text="promise"></span><small>08.00</small></div>
-                        </details>
+                        <div class="mt-3">
+                            @include('invoices.partials.default-message', ['type' => 'promise', 'title' => 'Contoh pesan', 'time' => '08.00'])
+                        </div>
                     </div>
                 </section>
 
@@ -576,7 +573,8 @@
     if (!form || !flow) return;
 
     const templates = @json($templateContents);
-    const defaults = @json($defaultMessages);
+    const originals = @json($originalMessages);
+    const messageText = (type) => form.querySelector(`[data-message="${type}"]`)?.value ?? originals[type] ?? '';
     const sample = {
         '{nama}': 'Nama Pelanggan', '{nama_pelanggan}': 'Nama Pelanggan',
         '{no_invoice}': 'INV-202610-0001', '{nomor_tagihan}': 'INV-202610-0001',
@@ -591,6 +589,7 @@
         before: { '{sisa_hari}': 'besok', '{hari_terlambat}': '0' },
         after: { '{sisa_hari}': '-', '{hari_terlambat}': '3' },
         promise: { '{sisa_hari}': '-', '{hari_terlambat}': '5' },
+        arrears: { '{sisa_hari}': '-', '{hari_terlambat}': '35', '{jumlah_tunggakan}': '2', '{periode}': 'September 2026, Oktober 2026', '{bulan}': 'September 2026, Oktober 2026', '{nominal}': 'Rp 300.000', '{jumlah}': 'Rp 300.000', '{nomor_tagihan}': 'INV-202609-0001, INV-202610-0001', '{no_invoice}': 'INV-202609-0001, INV-202610-0001', '{tanggal_jatuh_tempo}': '10 September 2026' },
     };
 
     const fill = (text, type) => {
@@ -609,10 +608,11 @@
         if (type === 'generated') {
             id = checked('billing_auto_generate_wa_template_ids')[0] ?? null;
         } else {
-            id = form.querySelector(`select[data-preview="${type}"]`)?.value || null;
+            const selectType = type === 'arrears' ? 'after' : type;
+            id = form.querySelector(`select[data-preview="${selectType}"]`)?.value || null;
         }
 
-        const content = id && templates[id] ? templates[id] : defaults[type];
+        const content = id && templates[id] ? templates[id] : messageText(type);
         target.textContent = fill(content || '', type);
         if (nameEl) nameEl.textContent = id && templates[id] ? 'Template' : 'Bawaan';
     }
@@ -692,7 +692,28 @@
     });
 
     form.querySelectorAll('[data-flow]').forEach((el) => ['input', 'change'].forEach((ev) => el.addEventListener(ev, renderFlow)));
-    form.querySelectorAll('[data-preview]').forEach((el) => el.addEventListener('change', () => renderPreview(el.dataset.preview)));
+    form.querySelectorAll('[data-preview]').forEach((el) => el.addEventListener('change', () => {
+        renderPreview(el.dataset.preview);
+        if (el.dataset.preview === 'after') renderPreview('arrears');
+    }));
+
+    // Editor pesan bawaan
+    const normalizeText = (text) => text.replace(/\r\n/g, '\n').trim();
+    function syncBadge(type) {
+        const badge = form.querySelector(`[data-custom-badge="${type}"]`);
+        if (badge) badge.hidden = normalizeText(messageText(type)) === normalizeText(originals[type]);
+    }
+    form.querySelectorAll('[data-message]').forEach((area) => {
+        area.addEventListener('input', () => { renderPreview(area.dataset.message); syncBadge(area.dataset.message); });
+    });
+    form.querySelectorAll('[data-reset-message]').forEach((button) => {
+        button.addEventListener('click', () => {
+            const type = button.dataset.resetMessage;
+            const area = form.querySelector(`[data-message="${type}"]`);
+            area.value = originals[type];
+            renderPreview(type); syncBadge(type); markDirty();
+        });
+    });
 
     // Salin kode isian
     document.querySelectorAll('[data-copy]').forEach((button) => {
@@ -713,7 +734,7 @@
     }
     form.addEventListener('change', markDirty);
 
-    ['generated', 'before', 'after', 'promise'].forEach(renderPreview);
+    ['generated', 'before', 'after', 'arrears', 'promise'].forEach(renderPreview);
     renderFlow();
 })();
 </script>

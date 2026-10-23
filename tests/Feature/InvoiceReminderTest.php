@@ -175,6 +175,15 @@ class InvoiceReminderTest extends TestCase
         Http::assertSent(fn (Request $request) => str_contains($request->body(), 'akan jatuh tempo besok'));
     }
 
+    public function test_edited_default_message_is_used(): void
+    {
+        $this->settings(['billing_message_before' => 'PENGINGAT KHUSUS {nama_pelanggan} {sisa_hari}']);
+
+        $this->runAt('2026-10-09 09:00');
+
+        Http::assertSent(fn (Request $request) => str_contains($request->body(), 'PENGINGAT KHUSUS Pelanggan Uji besok'));
+    }
+
     public function test_customer_with_several_overdue_invoices_gets_one_message(): void
     {
         $this->inTenant(fn () => Invoice::create([

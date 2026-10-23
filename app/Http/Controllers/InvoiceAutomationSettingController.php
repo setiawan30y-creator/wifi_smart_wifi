@@ -30,12 +30,7 @@ class InvoiceAutomationSettingController extends Controller
             'preview' => $automation->preview($tenant, now()),
             'beforeChoices' => ReminderSchedule::BEFORE_CHOICES,
             'afterChoices' => ReminderSchedule::AFTER_CHOICES,
-            'defaultMessages' => [
-                'generated' => BillingMessages::DEFAULT_GENERATED,
-                'before' => BillingMessages::DEFAULT_BEFORE_DUE,
-                'after' => BillingMessages::DEFAULT_OVERDUE,
-                'promise' => BillingMessages::DEFAULT_PAYMENT_PROMISE,
-            ],
+            'originalMessages' => BillingMessages::EDITABLE,
         ]);
     }
 

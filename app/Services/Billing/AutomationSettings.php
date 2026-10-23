@@ -33,6 +33,15 @@ final class AutomationSettings
         'billing_payment_promise_wa_template_id' => null,
     ];
 
+    /** Jenis pesan bawaan yang bisa diubah => key setting. */
+    public const MESSAGE_KEYS = [
+        'generated' => 'billing_message_generated',
+        'before' => 'billing_message_before',
+        'after' => 'billing_message_after',
+        'arrears' => 'billing_message_arrears',
+        'promise' => 'billing_message_promise',
+    ];
+
     private const BOOLEANS = [
         'billing_auto_generate_enabled', 'billing_auto_generate_send_wa', 'billing_auto_generate_group_same_phone',
         'billing_reminder_before_enabled', 'billing_overdue_wa_enabled',
@@ -70,6 +79,12 @@ final class AutomationSettings
             $values['billing_auto_generate_wa_template_ids'] = [(int) $stored['billing_auto_generate_wa_template_id']];
         }
 
+        // Pesan bawaan: teks yang sedang berlaku (versi tenant atau teks asli).
+        foreach (self::MESSAGE_KEYS as $type => $key) {
+            $custom = trim((string) ($stored[$key] ?? ''));
+            $values[$key] = $custom !== '' ? (string) $stored[$key] : BillingMessages::EDITABLE[$type];
+        }
+
         return $values;
     }
 
@@ -94,6 +109,13 @@ final class AutomationSettings
 
         $templateIds = collect($data['billing_auto_generate_wa_template_ids'] ?? [])->map(fn ($v) => (int) $v)->filter()->values();
         Setting::set('billing_auto_generate_wa_template_id', (string) ($templateIds->first() ?? ''));
+
+        // Pesan bawaan: disimpan kosong bila sama dengan teks asli, agar perbaikan teks asli
+        // di versi aplikasi berikutnya tetap sampai ke tenant yang tidak mengubahnya.
+        foreach (self::MESSAGE_KEYS as $type => $key) {
+            $text = str_replace("\r\n", "\n", trim((string) ($data[$key] ?? '')));
+            Setting::set($key, $text === '' || $text === BillingMessages::EDITABLE[$type] ? '' : $text);
+        }
 
         // Key lama tetap diisi agar kode/laporan lama yang masih membacanya tetap konsisten.
         $after = collect($data['billing_reminder_after_days'] ?? [])->map(fn ($v) => (int) $v)->sort()->values();

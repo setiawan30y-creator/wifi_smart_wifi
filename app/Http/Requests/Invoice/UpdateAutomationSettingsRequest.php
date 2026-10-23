@@ -41,6 +41,12 @@ class UpdateAutomationSettingsRequest extends FormRequest
             'billing_overdue_wa_template_id' => ['nullable', 'integer', $template],
 
             'billing_payment_promise_wa_template_id' => ['nullable', 'integer', $template],
+
+            'billing_message_generated' => ['nullable', 'string', 'max:2000'],
+            'billing_message_before' => ['nullable', 'string', 'max:2000'],
+            'billing_message_after' => ['nullable', 'string', 'max:2000'],
+            'billing_message_arrears' => ['nullable', 'string', 'max:2000'],
+            'billing_message_promise' => ['nullable', 'string', 'max:2000'],
         ];
     }
 
@@ -66,6 +72,11 @@ class UpdateAutomationSettingsRequest extends FormRequest
             'billing_reminder_before_days.*' => 'hari sebelum jatuh tempo',
             'billing_reminder_after_days' => 'jadwal sesudah jatuh tempo',
             'billing_reminder_after_days.*' => 'hari sesudah jatuh tempo',
+            'billing_message_generated' => 'pesan bawaan tagihan terbit',
+            'billing_message_before' => 'pesan bawaan sebelum jatuh tempo',
+            'billing_message_after' => 'pesan bawaan sesudah jatuh tempo',
+            'billing_message_arrears' => 'pesan bawaan tunggakan',
+            'billing_message_promise' => 'pesan bawaan janji bayar',
         ];
     }
 

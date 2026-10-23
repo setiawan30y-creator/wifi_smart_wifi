@@ -69,6 +69,33 @@ class AutomationSettingsPageTest extends TestCase
         $this->assertSame('4', $this->setting('billing_overdue_max_reminders'));
     }
 
+    public function test_default_messages_can_be_edited_and_reset(): void
+    {
+        $admin = $this->admin();
+        $custom = "Halo {nama_pelanggan}, tagihan {periode} sebesar {nominal} jatuh tempo {sisa_hari}.";
+
+        $this->actingAs($admin)
+            ->post(route('invoices.automation-settings.update'), $this->payload([
+                'billing_message_before' => $custom,
+                'billing_message_after' => \App\Services\Billing\BillingMessages::DEFAULT_OVERDUE,
+            ]))
+            ->assertSessionHasNoErrors();
+
+        $this->assertSame($custom, $this->setting('billing_message_before'));
+        $this->assertSame('', $this->setting('billing_message_after'), 'Teks asli tidak disimpan sebagai versi khusus');
+
+        app(\App\Support\Tenancy\TenantContext::class)->run(1, function () use ($custom) {
+            $this->assertSame($custom, \App\Services\Billing\BillingMessages::defaultText('before'));
+            $this->assertSame(\App\Services\Billing\BillingMessages::DEFAULT_OVERDUE, \App\Services\Billing\BillingMessages::defaultText('after'));
+        });
+
+        $this->withoutVite();
+        $this->actingAs($admin)->get(route('invoices.automation-settings'))
+            ->assertOk()
+            ->assertSee('Ubah pesan bawaan')
+            ->assertSee('jatuh tempo {sisa_hari}.', false);
+    }
+
     public function test_enabled_section_needs_at_least_one_day(): void
     {
         $this->actingAs($this->admin())
