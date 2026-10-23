@@ -1,375 +1,563 @@
 @extends('layouts.app')
 
 @section('content')
-<style>
-    .billing-automation-select option {
-        background: #0f172a;
-        color: #e2e8f0;
-    }
-
-    .billing-automation-select option:checked,
-    .billing-automation-select option:hover {
-        background: #1e293b;
-        color: #ffffff;
-    }
-
-    .billing-automation-field {
-        border: 1px solid rgba(51, 65, 85, .9);
-        background: rgba(2, 6, 23, .72);
-        color: #f8fafc;
-        border-radius: .75rem;
-        padding: .55rem .75rem;
-        font-size: .78rem;
-        line-height: 1.1rem;
-        width: 100%;
-        outline: none;
-    }
-
-    .billing-automation-field:focus {
-        border-color: #38bdf8;
-        box-shadow: 0 0 0 2px rgba(56, 189, 248, .15);
-    }
-
-    .billing-template-choice {
-        display: flex;
-        min-height: 2.35rem;
-        align-items: center;
-        gap: .55rem;
-        border: 1px solid rgba(51, 65, 85, .8);
-        border-radius: .65rem;
-        background: rgba(15, 23, 42, .62);
-        padding: .45rem .55rem;
-        transition: border-color .18s ease, background .18s ease;
-    }
-
-    .billing-template-choice:has(input:checked) {
-        border-color: rgba(56, 189, 248, .75);
-        background: rgba(14, 165, 233, .12);
-    }
-</style>
-
 @php
-    $autoGenerateActive = old('billing_auto_generate_enabled', $settings['billing_auto_generate_enabled']) == '1';
-    $autoSendWaActive = old('billing_auto_generate_send_wa', $settings['billing_auto_generate_send_wa']) == '1';
-    $autoGroupSamePhoneActive = old('billing_auto_generate_group_same_phone', $settings['billing_auto_generate_group_same_phone']) == '1';
-    $overdueActive = old('billing_overdue_wa_enabled', $settings['billing_overdue_wa_enabled']) == '1';
-    $storedGenerateTemplateIds = json_decode($settings['billing_auto_generate_wa_template_ids'] ?? '[]', true);
-    $storedGenerateTemplateIds = is_array($storedGenerateTemplateIds) ? $storedGenerateTemplateIds : [];
-    if (empty($storedGenerateTemplateIds) && !empty($settings['billing_auto_generate_wa_template_id'])) {
-        $storedGenerateTemplateIds = [$settings['billing_auto_generate_wa_template_id']];
-    }
-    $selectedGenerateTemplateIds = collect(old('billing_auto_generate_wa_template_ids', $storedGenerateTemplateIds))
-        ->map(fn ($id) => (string) $id)
-        ->all();
+    $val = fn (string $key) => old($key, $settings[$key]);
+    $on = fn (string $key) => (bool) old($key, $settings[$key]);
+
+    $generateOn = $on('billing_auto_generate_enabled');
+    $beforeOn = $on('billing_reminder_before_enabled');
+    $afterOn = $on('billing_overdue_wa_enabled');
+
+    $selectedGenerateTemplates = collect(old('billing_auto_generate_wa_template_ids', $settings['billing_auto_generate_wa_template_ids']))->map(fn ($id) => (int) $id)->all();
+    $beforeDays = collect(old('billing_reminder_before_days', $settings['billing_reminder_before_days']))->map(fn ($d) => (int) $d)->all();
+    $afterDays = collect(old('billing_reminder_after_days', $settings['billing_reminder_after_days']))->map(fn ($d) => (int) $d)->all();
+
+    // Hari yang pernah disimpan di luar pilihan cepat tetap ditampilkan sebagai chip.
+    $beforeChipList = collect($beforeChoices)->merge($beforeDays)->unique()->sortDesc()->values();
+    $afterChipList = collect($afterChoices)->merge($afterDays)->unique()->sort()->values();
+
+    $templateOptions = $waTemplates->map(fn ($t) => ['id' => $t->id, 'title' => $t->title ?: $t->name])->values();
+
     $placeholders = [
         '{nama_pelanggan}' => 'Nama pelanggan',
         '{nomor_tagihan}' => 'Nomor invoice',
-        '{periode}' => 'Periode tagihan',
+        '{periode}' => 'Periode, mis. Oktober 2026',
         '{nominal}' => 'Total tagihan',
-        '{tanggal_jatuh_tempo}' => 'Jatuh tempo',
+        '{tanggal_jatuh_tempo}' => 'Tanggal jatuh tempo',
+        '{sisa_hari}' => 'besok / dalam 3 hari / hari ini',
+        '{hari_terlambat}' => 'Jumlah hari terlambat',
+        '{jumlah_tunggakan}' => 'Jumlah periode belum lunas',
         '{tanggal_janji_bayar}' => 'Tanggal janji bayar',
         '{catatan_janji_bayar}' => 'Catatan janji bayar',
-        '{bulan}' => 'Bulan',
-        '{tahun}' => 'Tahun',
         '{nama_odp}' => 'Nama ODP',
+        '{rincian_tagihan}' => 'Rincian (pesan gabungan)',
     ];
+
+    $rupiah = fn ($n) => 'Rp ' . number_format((int) $n, 0, ',', '.');
+    $gen = $preview['generate'];
+    $reminderRows = collect($preview['reminders']);
 @endphp
 
-<div class="space-y-4">
-    <div class="flex flex-col gap-3 lg:flex-row lg:items-center lg:justify-between">
+<style>
+    .ba-card { border: 1px solid rgba(30, 41, 59, 1); background: rgba(15, 23, 42, .6); border-radius: .9rem; }
+    .ba-card[data-off="1"] .ba-body { opacity: .45; }
+    .ba-head { display: flex; align-items: flex-start; justify-content: space-between; gap: 1rem; padding: 1rem 1rem .85rem; border-bottom: 1px solid rgba(30, 41, 59, .9); }
+    .ba-body { padding: 1rem; display: grid; gap: .9rem; transition: opacity .15s ease; }
+    .ba-label { display: block; font-size: .68rem; font-weight: 700; letter-spacing: .02em; color: #94a3b8; margin-bottom: .35rem; }
+    .ba-hint { font-size: .68rem; color: #64748b; margin-top: .3rem; line-height: 1rem; }
+    .ba-field { width: 100%; border: 1px solid rgba(51, 65, 85, .9); background: rgba(2, 6, 23, .72); color: #f8fafc; border-radius: .65rem; padding: .5rem .7rem; font-size: .8rem; outline: none; }
+    .ba-field:focus { border-color: #38bdf8; box-shadow: 0 0 0 2px rgba(56, 189, 248, .15); }
+    .ba-field option { background: #0f172a; color: #e2e8f0; }
+    .ba-field.ba-invalid { border-color: rgba(244, 63, 94, .7); }
+    .ba-error { font-size: .68rem; color: #fda4af; margin-top: .3rem; }
+
+    .ba-switch { position: relative; display: inline-flex; flex-shrink: 0; cursor: pointer; }
+    .ba-switch input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .ba-switch span { width: 2.5rem; height: 1.4rem; border-radius: 999px; background: #334155; transition: background .15s ease; position: relative; }
+    .ba-switch span::after { content: ""; position: absolute; top: .2rem; left: .2rem; width: 1rem; height: 1rem; border-radius: 999px; background: #fff; transition: transform .15s ease; }
+    .ba-switch input:checked + span { background: #0ea5e9; }
+    .ba-switch input:checked + span::after { transform: translateX(1.1rem); }
+    .ba-switch input:focus-visible + span { box-shadow: 0 0 0 2px rgba(56, 189, 248, .5); }
+
+    .ba-row { display: flex; align-items: center; justify-content: space-between; gap: 1rem; padding: .6rem .7rem; border: 1px solid rgba(30, 41, 59, 1); border-radius: .65rem; background: rgba(2, 6, 23, .35); }
+    .ba-row-title { font-size: .78rem; font-weight: 600; color: #e2e8f0; }
+    .ba-row-sub { font-size: .68rem; color: #64748b; }
+
+    .ba-chips { display: flex; flex-wrap: wrap; gap: .4rem; }
+    .ba-chip { position: relative; }
+    .ba-chip input { position: absolute; opacity: 0; width: 1px; height: 1px; }
+    .ba-chip span { display: inline-flex; align-items: center; min-width: 3.1rem; justify-content: center; padding: .38rem .6rem; border-radius: .55rem; border: 1px solid rgba(51, 65, 85, .9); background: rgba(2, 6, 23, .5); color: #94a3b8; font-size: .74rem; font-weight: 700; cursor: pointer; user-select: none; transition: all .12s ease; }
+    .ba-chip input:checked + span { border-color: var(--chip, #38bdf8); background: color-mix(in srgb, var(--chip, #38bdf8) 16%, transparent); color: #f8fafc; }
+    .ba-chip input:focus-visible + span { box-shadow: 0 0 0 2px rgba(56, 189, 248, .45); }
+    .ba-chips[data-tone="before"] { --chip: #f59e0b; }
+    .ba-chips[data-tone="after"] { --chip: #f43f5e; }
+
+    .ba-add { display: inline-flex; gap: .3rem; }
+    .ba-add input { width: 4.2rem; }
+    .ba-btn { display: inline-flex; align-items: center; justify-content: center; gap: .4rem; border-radius: .6rem; padding: .45rem .8rem; font-size: .75rem; font-weight: 700; border: 1px solid rgba(51, 65, 85, .9); background: rgba(15, 23, 42, .85); color: #e2e8f0; transition: background .12s ease; }
+    .ba-btn:hover { background: #1e293b; }
+    .ba-btn-primary { border-color: rgba(14, 165, 233, .6); background: #0284c7; color: #fff; }
+    .ba-btn-primary:hover { background: #0369a1; }
+
+    .ba-template { display: flex; align-items: center; gap: .5rem; padding: .45rem .6rem; border: 1px solid rgba(51, 65, 85, .8); border-radius: .6rem; background: rgba(15, 23, 42, .6); font-size: .75rem; color: #cbd5e1; cursor: pointer; }
+    .ba-template:has(input:checked) { border-color: rgba(56, 189, 248, .75); background: rgba(14, 165, 233, .12); color: #f8fafc; }
+
+    .ba-timeline { position: relative; display: flex; align-items: flex-start; gap: 0; overflow-x: auto; padding: .4rem .2rem .2rem; }
+    .ba-step { flex: 1 0 4.2rem; display: flex; flex-direction: column; align-items: center; gap: .35rem; position: relative; text-align: center; }
+    .ba-step::before { content: ""; position: absolute; top: .45rem; left: 0; right: 0; height: 2px; background: #1e293b; z-index: 0; }
+    .ba-step:first-child::before { left: 50%; }
+    .ba-step:last-child::before { right: 50%; }
+    .ba-dot { position: relative; z-index: 1; width: .95rem; height: .95rem; border-radius: 999px; border: 2px solid #0f172a; background: var(--dot, #38bdf8); box-shadow: 0 0 0 2px var(--dot, #38bdf8); }
+    .ba-step b { font-size: .72rem; color: #f8fafc; }
+    .ba-step small { font-size: .62rem; color: #64748b; line-height: .85rem; }
+
+    .ba-ph { display: flex; justify-content: space-between; gap: .5rem; padding: .4rem .55rem; border: 1px solid rgba(30, 41, 59, 1); border-radius: .5rem; background: rgba(2, 6, 23, .35); font-size: .7rem; text-align: left; width: 100%; }
+    .ba-ph code { color: #7dd3fc; font-weight: 700; }
+    .ba-ph span { color: #64748b; }
+    .ba-ph:hover { border-color: rgba(56, 189, 248, .5); }
+
+    .ba-pre { white-space: pre-wrap; font-size: .7rem; line-height: 1.05rem; color: #94a3b8; background: rgba(2, 6, 23, .5); border: 1px dashed rgba(51, 65, 85, .9); border-radius: .6rem; padding: .6rem .7rem; margin-top: .45rem; }
+    .ba-pill { display: inline-flex; align-items: center; gap: .35rem; border-radius: .55rem; padding: .3rem .6rem; font-size: .68rem; font-weight: 700; border: 1px solid rgba(51, 65, 85, .9); background: rgba(15, 23, 42, .9); color: #94a3b8; }
+    .ba-pill i { width: .45rem; height: .45rem; border-radius: 999px; background: #475569; }
+    .ba-pill[data-on="1"] { color: #e2e8f0; }
+    .ba-pill[data-on="1"] i { background: #34d399; }
+    .ba-table { width: 100%; font-size: .72rem; border-collapse: collapse; }
+    .ba-table th { text-align: left; color: #64748b; font-weight: 700; padding: .4rem .5rem; border-bottom: 1px solid #1e293b; }
+    .ba-table td { padding: .45rem .5rem; border-bottom: 1px solid rgba(30, 41, 59, .6); color: #cbd5e1; }
+</style>
+
+<div class="space-y-4 pb-20">
+    {{-- Judul --}}
+    <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
             <h1 class="text-xl font-extrabold tracking-tight text-white md:text-2xl">Otomatis Tagihan</h1>
-            <p class="mt-1 text-xs text-slate-400">Aktifkan generate tagihan otomatis dan pengingat WhatsApp dari satu halaman.</p>
+            <p class="mt-1 text-xs text-slate-400">Atur kapan tagihan terbit dan kapan pelanggan diingatkan lewat WhatsApp — sebelum dan sesudah jatuh tempo.</p>
         </div>
-        <div class="flex flex-wrap items-center gap-2 text-xs">
-            <span class="rounded-lg border {{ $autoGenerateActive ? 'border-emerald-500/30 bg-emerald-500/10 text-emerald-300' : 'border-slate-700 bg-slate-900 text-slate-400' }} px-3 py-1.5 font-bold">
-                Generate: {{ $autoGenerateActive ? 'Aktif' : 'Nonaktif' }}
-            </span>
-            <span class="rounded-lg border {{ $overdueActive ? 'border-rose-500/30 bg-rose-500/10 text-rose-300' : 'border-slate-700 bg-slate-900 text-slate-400' }} px-3 py-1.5 font-bold">
-                Reminder: {{ $overdueActive ? 'Aktif' : 'Nonaktif' }}
-            </span>
-            <form action="{{ route('invoices.automation-settings.run-now') }}" method="POST" class="inline-flex" onsubmit="return confirm('Jalankan otomatis tagihan sekarang? Proses tetap mengikuti H- dan tanggal tagih pelanggan.')">
-                @csrf
-                <button type="submit" class="inline-flex items-center justify-center gap-2 rounded-lg border border-emerald-500/30 bg-emerald-500/10 px-3 py-1.5 font-semibold text-emerald-200 transition hover:bg-emerald-500/20">
-                    <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M14.752 11.168l-4.197-2.42A1 1 0 009 9.614v4.772a1 1 0 001.555.832l4.197-2.352a1 1 0 000-1.698z"/>
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/>
-                    </svg>
-                    Jalankan Sesuai H-
-                </button>
-            </form>
-            <a href="{{ route('invoices.index') }}" class="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-700 bg-slate-900/80 px-3 py-1.5 font-semibold text-slate-200 transition hover:bg-slate-800">
-                <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M10 19l-7-7m0 0l7-7m-7 7h18"/>
-                </svg>
-                Kembali
-            </a>
+        <div class="flex flex-wrap items-center gap-2">
+            <span class="ba-pill" data-on="{{ $generateOn ? 1 : 0 }}"><i></i>Tagihan terbit</span>
+            <span class="ba-pill" data-on="{{ $beforeOn ? 1 : 0 }}"><i></i>Sebelum jatuh tempo</span>
+            <span class="ba-pill" data-on="{{ $afterOn ? 1 : 0 }}"><i></i>Sesudah jatuh tempo</span>
+            <span class="ba-pill" data-on="{{ $preview['wa_ready'] ? 1 : 0 }}"><i></i>WA gateway</span>
+            <a href="{{ route('invoices.index') }}" class="ba-btn">← Tagihan</a>
         </div>
     </div>
 
-    @if(session('success'))
-        <div class="rounded-xl border border-emerald-500/25 bg-emerald-500/10 px-4 py-2.5 text-xs font-semibold text-emerald-300">
-            {{ session('success') }}
+    @unless($preview['wa_ready'])
+        <div class="rounded-xl border border-amber-500/30 bg-amber-500/10 px-4 py-2.5 text-xs text-amber-200">
+            Token WA gateway belum diisi, jadi pesan WhatsApp tidak akan terkirim. Isi di <a class="font-bold underline" href="{{ route('settings.index') }}">Pengaturan</a>. Pembuatan tagihan tetap berjalan.
         </div>
-    @endif
-
-    @if(session('error'))
-        <div class="rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-2.5 text-xs font-semibold text-rose-200">
-            {{ session('error') }}
-        </div>
-    @endif
+    @endunless
 
     @if($errors->any())
         <div class="rounded-xl border border-rose-500/25 bg-rose-500/10 px-4 py-2.5 text-xs text-rose-200">
-            Ada pengaturan yang belum sesuai. Cek kolom yang ditandai.
+            <div class="font-bold">Pengaturan belum tersimpan:</div>
+            <ul class="mt-1 list-disc pl-4">
+                @foreach($errors->all() as $error)
+                    <li>{{ $error }}</li>
+                @endforeach
+            </ul>
         </div>
     @endif
 
-    <form action="{{ route('invoices.automation-settings.update') }}" method="POST" class="space-y-4">
+    {{-- Hari ini (pratinjau, tidak mengirim apa pun) --}}
+    <section class="ba-card">
+        <div class="ba-head">
+            <div>
+                <h2 class="text-sm font-bold text-white">Hari ini, {{ now()->translatedFormat('l, d F Y') }}</h2>
+                <p class="ba-row-sub mt-0.5">Perkiraan pekerjaan scheduler hari ini berdasarkan pengaturan yang <b>sudah tersimpan</b>. Halaman ini tidak mengirim pesan.</p>
+            </div>
+        </div>
+        <div class="ba-body md:grid-cols-3">
+            <div class="ba-row flex-col !items-start">
+                <div class="ba-row-sub">Tagihan siap terbit</div>
+                <div class="text-lg font-extrabold text-white">{{ $gen['count'] }} <span class="text-xs font-semibold text-slate-400">pelanggan</span></div>
+                <div class="ba-row-sub">
+                    @if(!$gen['enabled'])
+                        Otomatis terbit nonaktif.
+                    @elseif($gen['ran_today'])
+                        Sudah berjalan hari ini; sisanya terbit besok jam {{ $gen['time'] }}.
+                    @else
+                        {{ $rupiah($gen['amount']) }} · terbit jam {{ $gen['time'] }}
+                    @endif
+                </div>
+            </div>
+            <div class="ba-row flex-col !items-start">
+                <div class="ba-row-sub">Pengingat sebelum jatuh tempo</div>
+                <div class="text-lg font-extrabold text-amber-300">{{ $reminderRows->where('type', 'before')->count() }} <span class="text-xs font-semibold text-slate-400">pelanggan</span></div>
+                <div class="ba-row-sub">Dikirim mulai jam {{ $preview['schedule']->time }}</div>
+            </div>
+            <div class="ba-row flex-col !items-start">
+                <div class="ba-row-sub">Pengingat sesudah jatuh tempo</div>
+                <div class="text-lg font-extrabold text-rose-300">{{ $reminderRows->where('type', 'after')->count() }} <span class="text-xs font-semibold text-slate-400">pelanggan</span></div>
+                <div class="ba-row-sub">Dikirim mulai jam {{ $preview['schedule']->time }}</div>
+            </div>
+
+            @if($reminderRows->isNotEmpty())
+                <details class="md:col-span-3">
+                    <summary class="cursor-pointer text-xs font-bold text-sky-300">Lihat daftar pengingat hari ini ({{ $reminderRows->count() }})</summary>
+                    <div class="mt-2 max-h-72 overflow-auto rounded-lg border border-slate-800">
+                        <table class="ba-table">
+                            <thead><tr><th>Pelanggan</th><th>Tahap</th><th>Invoice</th><th class="text-right">Nominal</th></tr></thead>
+                            <tbody>
+                                @foreach($reminderRows as $row)
+                                    <tr>
+                                        <td>{{ $row['customer'] }}</td>
+                                        <td><span class="{{ $row['type'] === 'before' ? 'text-amber-300' : 'text-rose-300' }} font-bold">{{ $row['stages'] }}</span></td>
+                                        <td class="text-slate-400">{{ $row['invoices'] }}</td>
+                                        <td class="text-right">{{ $rupiah($row['amount']) }}</td>
+                                    </tr>
+                                @endforeach
+                            </tbody>
+                        </table>
+                    </div>
+                </details>
+            @endif
+        </div>
+    </section>
+
+    <form id="ba-form" action="{{ route('invoices.automation-settings.update') }}" method="POST" class="space-y-4">
         @csrf
 
+        {{-- Alur satu siklus tagihan --}}
+        <section class="ba-card">
+            <div class="ba-head">
+                <div>
+                    <h2 class="text-sm font-bold text-white">Alur satu tagihan</h2>
+                    <p class="ba-row-sub mt-0.5">Berubah langsung saat Anda mengubah pengaturan di bawah. Pengingat berhenti otomatis begitu tagihan dibayar.</p>
+                </div>
+            </div>
+            <div class="ba-body">
+                <div id="ba-timeline" class="ba-timeline" aria-live="polite"></div>
+            </div>
+        </section>
+
         <div class="grid grid-cols-1 gap-4 xl:grid-cols-2">
-            <section class="rounded-xl border border-slate-800 bg-slate-900/60 p-4 shadow-lg shadow-slate-950/20">
-                <div class="flex items-start justify-between gap-4 border-b border-slate-800/80 pb-3">
+            {{-- 1. Tagihan terbit --}}
+            <section class="ba-card" data-section="generate" data-off="{{ $generateOn ? 0 : 1 }}">
+                <div class="ba-head">
                     <div>
-                        <div class="flex items-center gap-2">
-                            <h2 class="text-sm font-bold text-white">Generate Tagihan</h2>
-                            <span class="rounded-md {{ $autoGenerateActive ? 'bg-emerald-500/15 text-emerald-300' : 'bg-slate-800 text-slate-400' }} px-2 py-0.5 text-[10px] font-bold uppercase">
-                                {{ $autoGenerateActive ? 'Aktif' : 'Mati' }}
-                            </span>
-                        </div>
-                        <p class="mt-1 text-[11px] leading-relaxed text-slate-400">Membuat tagihan otomatis untuk pelanggan aktif berbayar. Pelanggan gratis dan berhenti tidak ikut.</p>
+                        <h2 class="text-sm font-bold text-white">1. Tagihan terbit otomatis</h2>
+                        <p class="ba-row-sub mt-0.5">Tagihan bulan berjalan dibuat beberapa hari sebelum jatuh tempo (tanggal tagih pelanggan).</p>
                     </div>
-                    <label class="relative inline-flex cursor-pointer items-center gap-2">
-                        <input type="checkbox" name="billing_auto_generate_enabled" value="1" class="peer sr-only" {{ $autoGenerateActive ? 'checked' : '' }}>
-                        <span class="relative h-6 w-11 rounded-full bg-slate-700 transition peer-checked:bg-emerald-500 after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-5"></span>
+                    <label class="ba-switch" title="Aktif / nonaktif">
+                        <input type="checkbox" name="billing_auto_generate_enabled" value="1" data-toggle="generate" @checked($generateOn)>
+                        <span></span>
                     </label>
                 </div>
-
-                <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    <div>
-                        <label class="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">Generate H-</label>
-                        <input type="number" min="0" max="31" name="billing_auto_generate_days_before_due" value="{{ old('billing_auto_generate_days_before_due', $settings['billing_auto_generate_days_before_due']) }}" class="billing-automation-field">
-                        <p class="mt-1 text-[10px] text-slate-500">Contoh 3: dibuat 3 hari sebelum tanggal tagih.</p>
-                        @error('billing_auto_generate_days_before_due') <p class="mt-1 text-xs text-rose-300">{{ $message }}</p> @enderror
+                <div class="ba-body">
+                    <div class="grid grid-cols-2 gap-3">
+                        <div>
+                            <label class="ba-label" for="days_before_due">Terbit H- (hari sebelum jatuh tempo)</label>
+                            <input id="days_before_due" type="number" min="0" max="31" name="billing_auto_generate_days_before_due" value="{{ $val('billing_auto_generate_days_before_due') }}" class="ba-field @error('billing_auto_generate_days_before_due') ba-invalid @enderror" data-timeline>
+                            @error('billing_auto_generate_days_before_due')<div class="ba-error">{{ $message }}</div>@enderror
+                        </div>
+                        <div>
+                            <label class="ba-label" for="generate_time">Jam terbit</label>
+                            <input id="generate_time" type="time" name="billing_auto_generate_time" value="{{ $val('billing_auto_generate_time') }}" class="ba-field @error('billing_auto_generate_time') ba-invalid @enderror">
+                            @error('billing_auto_generate_time')<div class="ba-error">{{ $message }}</div>@enderror
+                        </div>
                     </div>
-                    <div>
-                        <label class="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">Jam Eksekusi</label>
-                        <input type="time" name="billing_auto_generate_time" value="{{ old('billing_auto_generate_time', $settings['billing_auto_generate_time']) }}" class="billing-automation-field">
-                        <p class="mt-1 text-[10px] text-slate-500">Jam server menjalankan proses otomatis.</p>
-                        @error('billing_auto_generate_time') <p class="mt-1 text-xs text-rose-300">{{ $message }}</p> @enderror
-                    </div>
-                </div>
 
-                <div class="mt-4 rounded-xl border border-slate-800 bg-slate-950/45 p-3">
-                    <label class="flex cursor-pointer items-start justify-between gap-3">
-                        <span>
-                            <span class="block text-xs font-bold text-slate-200">Kirim WA setelah tagihan dibuat</span>
-                            <span class="mt-0.5 block text-[10px] text-slate-500">Centang ini kalau invoice yang baru dibuat otomatis langsung dikirim lewat WA Gateway.</span>
-                        </span>
-                        <input type="checkbox" name="billing_auto_generate_send_wa" value="1" class="mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-900 text-sky-500 focus:ring-sky-500" {{ $autoSendWaActive ? 'checked' : '' }}>
+                    <label class="ba-row cursor-pointer">
+                        <div>
+                            <div class="ba-row-title">Kirim WA saat tagihan terbit</div>
+                            <div class="ba-row-sub">Pengingat H- pada hari yang sama dilewati agar tidak dobel.</div>
+                        </div>
+                        <span class="ba-switch"><input type="checkbox" name="billing_auto_generate_send_wa" value="1" data-timeline @checked($on('billing_auto_generate_send_wa'))><span></span></span>
                     </label>
 
-                    <label class="mt-3 flex cursor-pointer items-start justify-between gap-3 rounded-lg border border-slate-800 bg-slate-950/45 px-3 py-2.5">
-                        <span>
-                            <span class="block text-xs font-bold text-slate-200">Gabungkan WA jika nomor sama</span>
-                            <span class="mt-0.5 block text-[10px] text-slate-500">Jika 2 pelanggan memakai nomor WA yang sama, sistem mengirim 1 pesan berisi semua rincian tagihan.</span>
-                        </span>
-                        <input type="checkbox" name="billing_auto_generate_group_same_phone" value="1" class="mt-0.5 h-4 w-4 rounded border-slate-600 bg-slate-900 text-sky-500 focus:ring-sky-500" {{ $autoGroupSamePhoneActive ? 'checked' : '' }}>
+                    <label class="ba-row cursor-pointer">
+                        <div>
+                            <div class="ba-row-title">Gabungkan pelanggan dengan nomor WA sama</div>
+                            <div class="ba-row-sub">Satu pesan berisi rincian semua tagihan di nomor itu.</div>
+                        </div>
+                        <span class="ba-switch"><input type="checkbox" name="billing_auto_generate_group_same_phone" value="1" @checked($on('billing_auto_generate_group_same_phone'))><span></span></span>
                     </label>
 
-                    <div class="mt-3">
-                        <div class="mb-1.5 flex items-center justify-between gap-2">
-                            <label class="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Template WA Generate</label>
-                            <span id="generate-template-count" class="text-[10px] font-semibold text-sky-300">{{ count($selectedGenerateTemplateIds) }} dipilih</span>
-                        </div>
-                        <input id="generate-template-primary" type="hidden" name="billing_auto_generate_wa_template_id" value="{{ $selectedGenerateTemplateIds[0] ?? '' }}">
-                        <div class="grid max-h-44 grid-cols-1 gap-2 overflow-y-auto pr-1 sm:grid-cols-2">
-                            @foreach($waTemplates as $template)
-                                <label class="billing-template-choice cursor-pointer">
-                                    <input type="checkbox" name="billing_auto_generate_wa_template_ids[]" value="{{ $template->id }}" class="h-3.5 w-3.5 rounded border-slate-600 bg-slate-950 text-sky-500 focus:ring-sky-500" {{ in_array((string) $template->id, $selectedGenerateTemplateIds, true) ? 'checked' : '' }}>
-                                    <span class="min-w-0">
-                                        <span class="block truncate text-[11px] font-bold text-slate-100">{{ $template->title }}</span>
-                                        <span class="block truncate text-[10px] text-slate-500">{{ $template->name }}</span>
-                                    </span>
-                                </label>
-                            @endforeach
-                        </div>
-                        <p class="mt-1 text-[10px] text-slate-500">Centang beberapa template. Sistem akan memilih otomatis secara bergantian saat WA tagihan dikirim. Jika nomor WA sama dan opsi gabung aktif, satu pesan akan berisi rincian beberapa pelanggan.</p>
-                        @error('billing_auto_generate_wa_template_ids') <p class="mt-1 text-xs text-rose-300">{{ $message }}</p> @enderror
-                        @error('billing_auto_generate_wa_template_ids.*') <p class="mt-1 text-xs text-rose-300">{{ $message }}</p> @enderror
-                    </div>
-
-                    <div class="mt-3 rounded-lg border border-slate-800 bg-slate-950/45 p-3">
-                        <div class="mb-2 flex items-center justify-between gap-2">
-                            <label class="block text-[10px] font-bold uppercase tracking-wide text-slate-400">Jeda Kirim Random</label>
-                            <span class="rounded-md bg-sky-500/10 px-2 py-0.5 text-[10px] font-bold text-sky-300">Detik</span>
-                        </div>
-                        <div class="grid grid-cols-2 gap-2">
-                            <div>
-                                <input type="number" min="0" max="3600" name="billing_auto_generate_wa_delay_min" value="{{ old('billing_auto_generate_wa_delay_min', $settings['billing_auto_generate_wa_delay_min']) }}" class="billing-automation-field" placeholder="Min">
-                                <p class="mt-1 text-[10px] text-slate-500">Minimal</p>
-                                @error('billing_auto_generate_wa_delay_min') <p class="mt-1 text-xs text-rose-300">{{ $message }}</p> @enderror
+                    <div>
+                        <span class="ba-label">Template WA tagihan terbit</span>
+                        @if($templateOptions->isEmpty())
+                            <p class="ba-hint">Belum ada template. Pesan bawaan dipakai. <a class="text-sky-300 underline" href="{{ route('wa-templates.index') }}">Buat template</a></p>
+                        @else
+                            <div class="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
+                                @foreach($templateOptions as $template)
+                                    <label class="ba-template">
+                                        <input type="checkbox" name="billing_auto_generate_wa_template_ids[]" value="{{ $template['id'] }}" @checked(in_array($template['id'], $selectedGenerateTemplates, true)) class="accent-sky-500">
+                                        <span class="truncate">{{ $template['title'] }}</span>
+                                    </label>
+                                @endforeach
                             </div>
-                            <div>
-                                <input type="number" min="0" max="3600" name="billing_auto_generate_wa_delay_max" value="{{ old('billing_auto_generate_wa_delay_max', $settings['billing_auto_generate_wa_delay_max']) }}" class="billing-automation-field" placeholder="Max">
-                                <p class="mt-1 text-[10px] text-slate-500">Maksimal</p>
-                                @error('billing_auto_generate_wa_delay_max') <p class="mt-1 text-xs text-rose-300">{{ $message }}</p> @enderror
-                            </div>
-                        </div>
-                        <p class="mt-2 text-[10px] leading-relaxed text-slate-500">Contoh 8 dan 25: setiap WA diberi jeda acak antara 8-25 detik sebelum kirim berikutnya.</p>
+                            <p class="ba-hint">Pilih lebih dari satu agar isi pesan bervariasi. Tidak memilih = pesan bawaan.</p>
+                        @endif
+                        <details>
+                            <summary class="mt-1 cursor-pointer text-[11px] font-semibold text-slate-400">Lihat pesan bawaan</summary>
+                            <div class="ba-pre">{{ $defaultMessages['generated'] }}</div>
+                        </details>
                     </div>
                 </div>
             </section>
 
-            <section class="rounded-xl border border-slate-800 bg-slate-900/60 p-4 shadow-lg shadow-slate-950/20">
-                <div class="flex items-start justify-between gap-4 border-b border-slate-800/80 pb-3">
+            {{-- 2. Sebelum jatuh tempo --}}
+            <section class="ba-card" data-section="before" data-off="{{ $beforeOn ? 0 : 1 }}">
+                <div class="ba-head">
                     <div>
-                        <div class="flex items-center gap-2">
-                            <h2 class="text-sm font-bold text-white">WA Setelah Jatuh Tempo</h2>
-                            <span class="rounded-md {{ $overdueActive ? 'bg-rose-500/15 text-rose-300' : 'bg-slate-800 text-slate-400' }} px-2 py-0.5 text-[10px] font-bold uppercase">
-                                {{ $overdueActive ? 'Aktif' : 'Mati' }}
-                            </span>
-                        </div>
-                        <p class="mt-1 text-[11px] leading-relaxed text-slate-400">Mengirim pengingat untuk invoice yang sudah lewat jatuh tempo dan belum lunas.</p>
+                        <h2 class="text-sm font-bold text-white">2. Pengingat sebelum jatuh tempo</h2>
+                        <p class="ba-row-sub mt-0.5">Untuk tagihan yang belum dibayar. Pilih hari-hari pengiriman.</p>
                     </div>
-                    <label class="relative inline-flex cursor-pointer items-center gap-2">
-                        <input type="checkbox" name="billing_overdue_wa_enabled" value="1" class="peer sr-only" {{ $overdueActive ? 'checked' : '' }}>
-                        <span class="relative h-6 w-11 rounded-full bg-slate-700 transition peer-checked:bg-rose-500 after:absolute after:left-1 after:top-1 after:h-4 after:w-4 after:rounded-full after:bg-white after:transition peer-checked:after:translate-x-5"></span>
+                    <label class="ba-switch" title="Aktif / nonaktif">
+                        <input type="checkbox" name="billing_reminder_before_enabled" value="1" data-toggle="before" @checked($beforeOn)>
+                        <span></span>
                     </label>
                 </div>
-
-                <div class="mt-4 grid grid-cols-1 gap-3 sm:grid-cols-2">
+                <div class="ba-body">
                     <div>
-                        <label class="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">Kirim H+</label>
-                        <input type="number" min="0" max="60" name="billing_overdue_days_after_due" value="{{ old('billing_overdue_days_after_due', $settings['billing_overdue_days_after_due']) }}" class="billing-automation-field">
-                        <p class="mt-1 text-[10px] text-slate-500">Contoh 1: kirim 1 hari setelah jatuh tempo.</p>
-                        @error('billing_overdue_days_after_due') <p class="mt-1 text-xs text-rose-300">{{ $message }}</p> @enderror
+                        <span class="ba-label">Kirim pada</span>
+                        <div class="ba-chips" data-tone="before" data-chips="before">
+                            @foreach($beforeChipList as $day)
+                                <label class="ba-chip">
+                                    <input type="checkbox" name="billing_reminder_before_days[]" value="{{ $day }}" data-timeline @checked(in_array($day, $beforeDays, true))>
+                                    <span>{{ $day === 0 ? 'Hari H' : 'H-' . $day }}</span>
+                                </label>
+                            @endforeach
+                            <span class="ba-add">
+                                <input type="number" min="0" max="31" placeholder="H-…" class="ba-field !py-1" data-add-input="before" aria-label="Tambah hari sebelum jatuh tempo">
+                                <button type="button" class="ba-btn !py-1" data-add="before">+</button>
+                            </span>
+                        </div>
+                        @error('billing_reminder_before_days')<div class="ba-error">{{ $message }}</div>@enderror
+                        @error('billing_reminder_before_days.*')<div class="ba-error">{{ $message }}</div>@enderror
+                        <p class="ba-hint">Hari H = pada tanggal jatuh tempo.</p>
                     </div>
+
                     <div>
-                        <label class="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">Maks. Pengingat</label>
-                        <input type="number" min="1" max="10" name="billing_overdue_max_reminders" value="{{ old('billing_overdue_max_reminders', $settings['billing_overdue_max_reminders']) }}" class="billing-automation-field">
-                        <p class="mt-1 text-[10px] text-slate-500">Batas kirim WA agar pelanggan tidak berulang terus.</p>
-                        @error('billing_overdue_max_reminders') <p class="mt-1 text-xs text-rose-300">{{ $message }}</p> @enderror
+                        <label class="ba-label" for="before_template">Template WA</label>
+                        <select id="before_template" name="billing_reminder_before_wa_template_id" class="ba-field">
+                            <option value="">Pesan bawaan</option>
+                            @foreach($templateOptions as $template)
+                                <option value="{{ $template['id'] }}" @selected((int) $val('billing_reminder_before_wa_template_id') === $template['id'])>{{ $template['title'] }}</option>
+                            @endforeach
+                        </select>
+                        @error('billing_reminder_before_wa_template_id')<div class="ba-error">{{ $message }}</div>@enderror
+                        <details>
+                            <summary class="mt-1 cursor-pointer text-[11px] font-semibold text-slate-400">Lihat pesan bawaan</summary>
+                            <div class="ba-pre">{{ $defaultMessages['before'] }}</div>
+                        </details>
                     </div>
                 </div>
+            </section>
 
-                <div class="mt-4">
-                    <label class="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-slate-400">Template WA Jatuh Tempo</label>
-                    <select name="billing_overdue_wa_template_id" class="billing-automation-field billing-automation-select focus:border-rose-500">
-                        <option value="">Template bawaan sistem</option>
-                        @foreach($waTemplates as $template)
-                            <option value="{{ $template->id }}" {{ (string) old('billing_overdue_wa_template_id', $settings['billing_overdue_wa_template_id']) === (string) $template->id ? 'selected' : '' }}>
-                                {{ $template->title }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <p class="mt-1 text-[10px] text-slate-500">Template ini dipakai untuk tagihan yang belum dibayar setelah jatuh tempo.</p>
-                    @error('billing_overdue_wa_template_id') <p class="mt-1 text-xs text-rose-300">{{ $message }}</p> @enderror
-                </div>
-
-                <div class="mt-4 rounded-xl border border-amber-500/20 bg-amber-500/10 p-3">
-                    <div class="mb-2">
-                        <h3 class="text-xs font-bold text-amber-200">WA Janji Bayar</h3>
-                        <p class="mt-0.5 text-[10px] leading-relaxed text-amber-100/70">Dipakai saat admin mencatat pelanggan janji bayar tanggal tertentu. Sistem mengirim WA otomatis pada tanggal janji jika invoice masih belum lunas.</p>
+            {{-- 3. Sesudah jatuh tempo --}}
+            <section class="ba-card" data-section="after" data-off="{{ $afterOn ? 0 : 1 }}">
+                <div class="ba-head">
+                    <div>
+                        <h2 class="text-sm font-bold text-white">3. Pengingat sesudah jatuh tempo</h2>
+                        <p class="ba-row-sub mt-0.5">Untuk pelanggan yang belum bayar. Tunggakan beberapa bulan digabung dalam satu pesan.</p>
                     </div>
-                    <label class="mb-1.5 block text-[10px] font-bold uppercase tracking-wide text-amber-100/80">Template Default Janji Bayar</label>
-                    <select name="billing_payment_promise_wa_template_id" class="billing-automation-field billing-automation-select focus:border-amber-500">
-                        <option value="">Template bawaan sistem</option>
-                        @foreach($waTemplates as $template)
-                            <option value="{{ $template->id }}" {{ (string) old('billing_payment_promise_wa_template_id', $settings['billing_payment_promise_wa_template_id']) === (string) $template->id ? 'selected' : '' }}>
-                                {{ $template->title }}
-                            </option>
-                        @endforeach
-                    </select>
-                    <p class="mt-1 text-[10px] text-amber-100/65">Template ini dipakai jika invoice tidak memilih template khusus.</p>
-                    @error('billing_payment_promise_wa_template_id') <p class="mt-1 text-xs text-rose-300">{{ $message }}</p> @enderror
+                    <label class="ba-switch" title="Aktif / nonaktif">
+                        <input type="checkbox" name="billing_overdue_wa_enabled" value="1" data-toggle="after" @checked($afterOn)>
+                        <span></span>
+                    </label>
+                </div>
+                <div class="ba-body">
+                    <div>
+                        <span class="ba-label">Kirim pada</span>
+                        <div class="ba-chips" data-tone="after" data-chips="after">
+                            @foreach($afterChipList as $day)
+                                <label class="ba-chip">
+                                    <input type="checkbox" name="billing_reminder_after_days[]" value="{{ $day }}" data-timeline @checked(in_array($day, $afterDays, true))>
+                                    <span>H+{{ $day }}</span>
+                                </label>
+                            @endforeach
+                            <span class="ba-add">
+                                <input type="number" min="1" max="120" placeholder="H+…" class="ba-field !py-1" data-add-input="after" aria-label="Tambah hari sesudah jatuh tempo">
+                                <button type="button" class="ba-btn !py-1" data-add="after">+</button>
+                            </span>
+                        </div>
+                        @error('billing_reminder_after_days')<div class="ba-error">{{ $message }}</div>@enderror
+                        @error('billing_reminder_after_days.*')<div class="ba-error">{{ $message }}</div>@enderror
+                        <p class="ba-hint">Maksimal 10 hari. Selama pelanggan punya janji bayar yang belum lewat, pengingat ini ditahan.</p>
+                    </div>
+
+                    <div>
+                        <label class="ba-label" for="after_template">Template WA</label>
+                        <select id="after_template" name="billing_overdue_wa_template_id" class="ba-field">
+                            <option value="">Pesan bawaan</option>
+                            @foreach($templateOptions as $template)
+                                <option value="{{ $template['id'] }}" @selected((int) $val('billing_overdue_wa_template_id') === $template['id'])>{{ $template['title'] }}</option>
+                            @endforeach
+                        </select>
+                        @error('billing_overdue_wa_template_id')<div class="ba-error">{{ $message }}</div>@enderror
+                        <details>
+                            <summary class="mt-1 cursor-pointer text-[11px] font-semibold text-slate-400">Lihat pesan bawaan</summary>
+                            <div class="ba-pre">{{ $defaultMessages['after'] }}</div>
+                        </details>
+                    </div>
+                </div>
+            </section>
+
+            {{-- 4. Jam kirim, jeda, janji bayar --}}
+            <section class="ba-card">
+                <div class="ba-head">
+                    <div>
+                        <h2 class="text-sm font-bold text-white">4. Jam kirim &amp; janji bayar</h2>
+                        <p class="ba-row-sub mt-0.5">Berlaku untuk semua pesan otomatis.</p>
+                    </div>
+                </div>
+                <div class="ba-body">
+                    <div class="grid grid-cols-3 gap-3">
+                        <div>
+                            <label class="ba-label" for="reminder_time">Jam kirim pengingat</label>
+                            <input id="reminder_time" type="time" name="billing_reminder_time" value="{{ $val('billing_reminder_time') }}" class="ba-field @error('billing_reminder_time') ba-invalid @enderror">
+                            @error('billing_reminder_time')<div class="ba-error">{{ $message }}</div>@enderror
+                        </div>
+                        <div>
+                            <label class="ba-label" for="delay_min">Jeda min (detik)</label>
+                            <input id="delay_min" type="number" min="0" max="300" name="billing_auto_generate_wa_delay_min" value="{{ $val('billing_auto_generate_wa_delay_min') }}" class="ba-field @error('billing_auto_generate_wa_delay_min') ba-invalid @enderror">
+                        </div>
+                        <div>
+                            <label class="ba-label" for="delay_max">Jeda maks (detik)</label>
+                            <input id="delay_max" type="number" min="0" max="300" name="billing_auto_generate_wa_delay_max" value="{{ $val('billing_auto_generate_wa_delay_max') }}" class="ba-field @error('billing_auto_generate_wa_delay_max') ba-invalid @enderror">
+                        </div>
+                    </div>
+                    @error('billing_auto_generate_wa_delay_max')<div class="ba-error">{{ $message }}</div>@enderror
+                    <p class="ba-hint -mt-2">Pengingat tidak dikirim sebelum jam ini. Jeda acak antar pesan membantu nomor WA tidak dianggap spam.</p>
+
+                    <div>
+                        <label class="ba-label" for="promise_template">Template WA janji bayar</label>
+                        <select id="promise_template" name="billing_payment_promise_wa_template_id" class="ba-field">
+                            <option value="">Pesan bawaan</option>
+                            @foreach($templateOptions as $template)
+                                <option value="{{ $template['id'] }}" @selected((int) $val('billing_payment_promise_wa_template_id') === $template['id'])>{{ $template['title'] }}</option>
+                            @endforeach
+                        </select>
+                        <p class="ba-hint">Dikirim sekali pada tanggal janji bayar yang dicatat di tagihan.</p>
+                        <details>
+                            <summary class="mt-1 cursor-pointer text-[11px] font-semibold text-slate-400">Lihat pesan bawaan</summary>
+                            <div class="ba-pre">{{ $defaultMessages['promise'] }}</div>
+                        </details>
+                    </div>
                 </div>
             </section>
         </div>
 
-        <section class="rounded-xl border border-slate-800 bg-slate-900/55 p-4">
-            <div class="flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
-                <div>
-                    <h2 class="text-sm font-bold text-white">Placeholder Template</h2>
-                    <p class="text-[11px] text-slate-400">Klik kode untuk copy, lalu tempel di isi template WA pada menu Pengaturan &gt; Template WA.</p>
-                </div>
-                <span id="placeholder-copy-status" class="hidden text-[11px] font-semibold text-emerald-300">Tersalin</span>
-            </div>
-            <div class="mt-3 grid grid-cols-2 gap-2 md:grid-cols-4">
-                @foreach($placeholders as $placeholder => $label)
-                    <button type="button" data-copy-placeholder="{{ $placeholder }}" class="group rounded-lg border border-slate-700 bg-slate-950/60 px-3 py-2 text-left transition hover:border-sky-500/70 hover:bg-slate-900">
-                        <span class="block font-mono text-[11px] font-bold text-slate-200 group-hover:text-sky-300">{{ $placeholder }}</span>
-                        <span class="mt-0.5 block text-[10px] text-slate-500">{{ $label }}</span>
-                    </button>
+        {{-- Placeholder --}}
+        <details class="ba-card">
+            <summary class="cursor-pointer px-4 py-3 text-xs font-bold text-slate-300">Kode isian untuk template WA (klik untuk menyalin)</summary>
+            <div class="grid grid-cols-1 gap-1.5 px-4 pb-4 sm:grid-cols-2 lg:grid-cols-3">
+                @foreach($placeholders as $code => $label)
+                    <button type="button" class="ba-ph" data-copy="{{ $code }}"><code>{{ $code }}</code><span>{{ $label }}</span></button>
                 @endforeach
             </div>
-        </section>
+        </details>
 
-        <section class="rounded-xl border border-sky-500/20 bg-sky-500/10 px-4 py-3 text-xs text-sky-100">
-            <strong>Cara mengaktifkan:</strong> nyalakan switch Generate Tagihan atau WA Setelah Jatuh Tempo, isi jadwalnya, pilih template bila perlu, lalu klik Simpan Pengaturan satu kali. Pengaturan tersimpan dan akan berjalan terus; generate mengikuti jam yang dipilih, sedangkan reminder setelah jatuh tempo diperiksa setiap menit. Tombol Jalankan Sesuai H- hanya menjalankan proses test/manual. Di Ubuntu, scheduler Laravel juga harus aktif.
-        </section>
-
-        <div class="sticky bottom-3 z-10 flex flex-col justify-end gap-2 rounded-xl border border-slate-800 bg-slate-950/85 p-3 shadow-xl shadow-slate-950/40 backdrop-blur sm:flex-row">
-            <a href="{{ route('invoices.index') }}" class="inline-flex items-center justify-center rounded-lg border border-slate-700 bg-slate-900/80 px-4 py-2 text-xs font-semibold text-slate-200 transition hover:bg-slate-800">
-                Batal
-            </a>
-            <button type="submit" class="inline-flex items-center justify-center rounded-lg bg-sky-500 px-4 py-2 text-xs font-bold text-white shadow-lg shadow-sky-950/20 transition hover:bg-sky-600">
-                Simpan Pengaturan
-            </button>
+        {{-- Simpan --}}
+        <div class="sticky bottom-3 z-20 flex flex-col gap-2 rounded-xl border border-slate-800 bg-slate-950/90 px-4 py-3 backdrop-blur sm:flex-row sm:items-center sm:justify-between">
+            <p class="text-[11px] text-slate-400" id="ba-dirty">Pengaturan dijalankan oleh scheduler server setiap menit.</p>
+            <div class="flex gap-2">
+                <a href="{{ route('invoices.automation-settings') }}" class="ba-btn">Batal</a>
+                <button type="submit" class="ba-btn ba-btn-primary">Simpan pengaturan</button>
+            </div>
         </div>
     </form>
 </div>
 
 <script>
-    document.addEventListener('DOMContentLoaded', () => {
-        const status = document.getElementById('placeholder-copy-status');
-        const templateCount = document.getElementById('generate-template-count');
-        const primaryTemplate = document.getElementById('generate-template-primary');
-        const templateChecks = document.querySelectorAll('input[name="billing_auto_generate_wa_template_ids[]"]');
+(function () {
+    const form = document.getElementById('ba-form');
+    const timeline = document.getElementById('ba-timeline');
+    if (!form || !timeline) return;
 
-        const refreshTemplateCount = () => {
-            const selected = Array.from(templateChecks).filter((checkbox) => checkbox.checked);
-            if (templateCount) {
-                templateCount.textContent = selected.length + ' dipilih';
-            }
-            if (primaryTemplate) {
-                primaryTemplate.value = selected[0]?.value || '';
-            }
-        };
+    const checked = (name) => Array.from(form.querySelectorAll(`input[name="${name}[]"]:checked`)).map((el) => parseInt(el.value, 10));
+    const isOn = (name) => form.querySelector(`input[name="${name}"]`)?.checked;
 
-        templateChecks.forEach((checkbox) => {
-            checkbox.addEventListener('change', refreshTemplateCount);
-        });
-        refreshTemplateCount();
+    function render() {
+        const steps = [];
+        const generateOn = isOn('billing_auto_generate_enabled');
+        const beforeOn = isOn('billing_reminder_before_enabled');
+        const afterOn = isOn('billing_overdue_wa_enabled');
+        const issueDay = parseInt(form.querySelector('[name="billing_auto_generate_days_before_due"]').value || '0', 10);
 
-        document.querySelectorAll('[data-copy-placeholder]').forEach((button) => {
-            button.addEventListener('click', async () => {
-                const value = button.dataset.copyPlaceholder || '';
-
-                try {
-                    await navigator.clipboard.writeText(value);
-                } catch (error) {
-                    const temp = document.createElement('textarea');
-                    temp.value = value;
-                    temp.setAttribute('readonly', 'readonly');
-                    temp.style.position = 'fixed';
-                    temp.style.opacity = '0';
-                    document.body.appendChild(temp);
-                    temp.select();
-                    document.execCommand('copy');
-                    document.body.removeChild(temp);
-                }
-
-                if (status) {
-                    status.textContent = value + ' tersalin';
-                    status.classList.remove('hidden');
-                    window.clearTimeout(Number(status.dataset.timerId || 0));
-                    const timerId = window.setTimeout(() => status.classList.add('hidden'), 1600);
-                    status.dataset.timerId = String(timerId);
-                }
+        if (generateOn) {
+            steps.push({ at: -issueDay, label: issueDay === 0 ? 'Hari H' : 'H-' + issueDay, note: isOn('billing_auto_generate_send_wa') ? 'Tagihan terbit + WA' : 'Tagihan terbit', color: '#38bdf8' });
+        }
+        if (beforeOn) {
+            checked('billing_reminder_before_days').forEach((d) => {
+                if (generateOn && d === issueDay && isOn('billing_auto_generate_send_wa')) return;
+                steps.push({ at: -d, label: d === 0 ? 'Hari H' : 'H-' + d, note: 'Pengingat', color: '#f59e0b' });
             });
+        }
+        steps.push({ at: 0.5, label: 'Jatuh tempo', note: '', color: '#a78bfa', due: true });
+        if (afterOn) {
+            checked('billing_reminder_after_days').forEach((d) => steps.push({ at: d, label: 'H+' + d, note: 'Belum bayar', color: '#f43f5e' }));
+        }
+
+        steps.sort((a, b) => a.at - b.at);
+        timeline.innerHTML = '';
+        steps.forEach((s) => {
+            const el = document.createElement('div');
+            el.className = 'ba-step';
+            el.style.setProperty('--dot', s.color);
+            const dot = document.createElement('span');
+            dot.className = 'ba-dot';
+            const label = document.createElement('b');
+            label.textContent = s.label;
+            const note = document.createElement('small');
+            note.textContent = s.due ? '' : s.note;
+            el.append(dot, label, note);
+            if (s.due) label.style.color = '#c4b5fd';
+            timeline.appendChild(el);
+        });
+
+        if (steps.length === 1) {
+            const empty = document.createElement('p');
+            empty.className = 'ba-hint';
+            empty.textContent = 'Semua otomatis nonaktif.';
+            timeline.appendChild(empty);
+        }
+    }
+
+    // Aktif/nonaktif per bagian
+    form.querySelectorAll('[data-toggle]').forEach((toggle) => {
+        toggle.addEventListener('change', () => {
+            const card = form.querySelector(`[data-section="${toggle.dataset.toggle}"]`);
+            if (card) card.dataset.off = toggle.checked ? '0' : '1';
+            render();
         });
     });
+
+    // Tambah hari custom sebagai chip
+    form.querySelectorAll('[data-add]').forEach((button) => {
+        const type = button.dataset.add;
+        const input = form.querySelector(`[data-add-input="${type}"]`);
+        const name = type === 'before' ? 'billing_reminder_before_days[]' : 'billing_reminder_after_days[]';
+        const min = parseInt(input.min, 10), max = parseInt(input.max, 10);
+
+        const add = () => {
+            const day = parseInt(input.value, 10);
+            if (Number.isNaN(day) || day < min || day > max) { input.focus(); return; }
+            const existing = form.querySelector(`input[name="${name}"][value="${day}"]`);
+            if (existing) { existing.checked = true; render(); input.value = ''; return; }
+
+            const chip = document.createElement('label');
+            chip.className = 'ba-chip';
+            const box = document.createElement('input');
+            box.type = 'checkbox'; box.name = name; box.value = day; box.checked = true;
+            box.addEventListener('change', render);
+            const text = document.createElement('span');
+            text.textContent = type === 'before' ? (day === 0 ? 'Hari H' : 'H-' + day) : 'H+' + day;
+            chip.append(box, text);
+            button.parentElement.before(chip);
+            input.value = '';
+            render();
+        };
+
+        button.addEventListener('click', add);
+        input.addEventListener('keydown', (e) => { if (e.key === 'Enter') { e.preventDefault(); add(); } });
+    });
+
+    form.querySelectorAll('[data-timeline]').forEach((el) => el.addEventListener('input', render));
+    form.querySelectorAll('[data-timeline]').forEach((el) => el.addEventListener('change', render));
+
+    // Salin kode isian
+    document.querySelectorAll('[data-copy]').forEach((button) => {
+        button.addEventListener('click', async () => {
+            try { await navigator.clipboard.writeText(button.dataset.copy); } catch (e) { return; }
+            const label = button.querySelector('span');
+            const original = label.textContent;
+            label.textContent = 'Disalin';
+            setTimeout(() => { label.textContent = original; }, 1200);
+        });
+    });
+
+    // Tanda ada perubahan belum disimpan
+    const dirty = document.getElementById('ba-dirty');
+    form.addEventListener('change', () => {
+        dirty.textContent = 'Ada perubahan yang belum disimpan.';
+        dirty.classList.add('text-amber-300');
+    }, { once: true });
+
+    render();
+})();
 </script>
 @endsection

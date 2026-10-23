@@ -69,6 +69,57 @@ class BillingAutomation
         });
     }
 
+    /**
+     * Ringkasan apa yang akan dikerjakan otomatis hari ini, TANPA membuat tagihan
+     * atau mengirim WA. Dipakai halaman Pengaturan Otomatis Tagihan.
+     *
+     * @return array{wa_ready: bool, generate: array, reminders: array, schedule: ReminderSchedule}
+     */
+    public function preview(Tenant $tenant, Carbon $now): array
+    {
+        return $this->tenants->run((int) $tenant->id, function () use ($now) {
+            $settings = Setting::query()->pluck('value', 'key')->all();
+            $gateway = app(WhatsAppGateway::class);
+            $schedule = ReminderSchedule::fromSettings($settings);
+            $daysBeforeDue = (int) ($settings['billing_auto_generate_days_before_due'] ?? 3);
+            $today = $now->copy()->startOfDay();
+
+            $toCreate = ['count' => 0, 'amount' => 0];
+            foreach ($this->generator->billableCustomers()->get() as $customer) {
+                $dueDate = DueDate::for($customer, $now->month, $now->year);
+                $start = DueDate::billingStart($customer);
+
+                if (!$customer->package
+                    || $today->lt($dueDate->copy()->subDays($daysBeforeDue))
+                    || ($start && $start->gt($dueDate->copy()->endOfDay()))
+                    || $this->generator->exists($customer, $now->month, $now->year)) {
+                    continue;
+                }
+
+                $toCreate['count']++;
+                $toCreate['amount'] += (int) $customer->package->price;
+            }
+
+            $generateSendsWa = $this->truthy($settings['billing_auto_generate_enabled'] ?? false)
+                && $this->truthy($settings['billing_auto_generate_send_wa'] ?? false);
+
+            $reminders = ($schedule->beforeEnabled || $schedule->afterEnabled)
+                ? (new InvoiceReminderSender($gateway, $schedule, $generateSendsWa))->preview($now)
+                : [];
+
+            return [
+                'wa_ready' => $gateway->hasToken(),
+                'generate' => [
+                    'enabled' => $this->truthy($settings['billing_auto_generate_enabled'] ?? false),
+                    'time' => substr((string) ($settings['billing_auto_generate_time'] ?? '02:00'), 0, 5) ?: '02:00',
+                    'ran_today' => ($settings[self::LAST_RUN_KEY] ?? '') === $now->toDateString(),
+                ] + $toCreate,
+                'reminders' => $reminders,
+                'schedule' => $schedule,
+            ];
+        });
+    }
+
     private function generate(Tenant $tenant, array $settings, WhatsAppGateway $gateway, Carbon $now, bool $ignoreWindow): void
     {
         $daysBeforeDue = (int) ($settings['billing_auto_generate_days_before_due'] ?? 3);

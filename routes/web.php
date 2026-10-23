@@ -157,7 +157,6 @@ Route::middleware(['auth'])->group(function () {
     Route::post('invoices/import', [InvoiceController::class, 'import'])->name('invoices.import')->middleware('can:invoices');
     Route::get('invoices/automation-settings', [InvoiceAutomationSettingController::class, 'index'])->name('invoices.automation-settings')->middleware('can:invoices');
     Route::post('invoices/automation-settings', [InvoiceAutomationSettingController::class, 'update'])->name('invoices.automation-settings.update')->middleware('can:invoices');
-    Route::post('invoices/automation-settings/run-now', [InvoiceAutomationSettingController::class, 'runNow'])->name('invoices.automation-settings.run-now')->middleware('can:invoices');
     Route::get('invoices', [InvoiceController::class, 'index'])->name('invoices.index')->middleware('can:invoices');
     Route::post('invoices/bulk-wa-qris', [\App\Http\Controllers\TripayController::class, 'requestGroupTransaction'])->name('invoices.bulkWaQris')->middleware('can:invoices');
     Route::get('invoices/{invoice}', [InvoiceController::class, 'show'])->name('invoices.show')->middleware('can:invoices')->whereNumber('invoice');

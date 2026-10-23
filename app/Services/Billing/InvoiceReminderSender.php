@@ -45,6 +45,53 @@ class InvoiceReminderSender
     public function send(Carbon $now): array
     {
         $counts = ['before' => 0, 'after' => 0, 'failed' => 0];
+
+        foreach ($this->plans($now) as [$customer, $phone, $plan, $unpaid]) {
+            $message = $this->message($plan, $customer, $unpaid, $now->copy()->startOfDay());
+            $result = $this->gateway->send($phone, $message);
+            $ok = (bool) ($result['success'] ?? false);
+
+            $this->record($plan, $now, $ok, $ok ? null : (string) ($result['message'] ?? 'Gagal mengirim WA'));
+
+            if ($ok) {
+                $counts[$plan['type']]++;
+                ($this->pause)();
+            } else {
+                $counts['failed']++;
+            }
+        }
+
+        return $counts;
+    }
+
+    /**
+     * Daftar pengingat yang akan dikirim hari ini, tanpa mengirim apa pun.
+     *
+     * @return array<int, array{customer: string, phone: string, type: string, stages: string, invoices: string, amount: int}>
+     */
+    public function preview(Carbon $now): array
+    {
+        $rows = [];
+
+        foreach ($this->plans($now) as [$customer, $phone, $plan]) {
+            $rows[] = [
+                'customer' => (string) $customer->name,
+                'phone' => $phone,
+                'type' => $plan['type'],
+                'stages' => collect($plan['items'])->map(fn ($item) => ReminderSchedule::label($plan['type'], $item['offset']))->unique()->implode(', '),
+                'invoices' => collect($plan['items'])->map(fn ($item) => $item['invoice']->invoice_number)->implode(', '),
+                'amount' => (int) collect($plan['items'])->sum(fn ($item) => (int) $item['invoice']->amount),
+            ];
+        }
+
+        return $rows;
+    }
+
+    /**
+     * @return \Generator<int, array{0: Customer, 1: string, 2: array, 3: Collection}>
+     */
+    private function plans(Carbon $now): \Generator
+    {
         $today = $now->copy()->startOfDay();
 
         $invoices = Invoice::query()
@@ -68,25 +115,11 @@ class InvoiceReminderSender
             }
 
             $plan = $this->plan($customerInvoices, $customer, $today);
-            if ($plan === null) {
-                continue;
-            }
 
-            $message = $this->message($plan, $customer, $customerInvoices, $today);
-            $result = $this->gateway->send($phone, $message);
-            $ok = (bool) ($result['success'] ?? false);
-
-            $this->record($plan, $now, $ok, $ok ? null : (string) ($result['message'] ?? 'Gagal mengirim WA'));
-
-            if ($ok) {
-                $counts[$plan['type']]++;
-                ($this->pause)();
-            } else {
-                $counts['failed']++;
+            if ($plan !== null) {
+                yield [$customer, $phone, $plan, $customerInvoices];
             }
         }
-
-        return $counts;
     }
 
     /**
