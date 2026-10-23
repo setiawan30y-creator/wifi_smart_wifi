@@ -33,7 +33,7 @@
     
     <style>
         body {
-            font-family: 'Plus Jakarta Sans', 'Outfit', sans-serif;
+            font-family: var(--font-sans);
         }
 
         @media (min-width: 768px) {
@@ -142,7 +142,7 @@
                 height: 4.25rem !important;
                 padding-left: 1rem !important;
                 padding-right: 1rem !important;
-                background: var(--chrome-bg) !important;
+                background: var(--header-bg) !important;
                 border-bottom: 1px solid var(--ui-border);
                 box-shadow: 0 16px 34px -28px var(--shadow-color);
             }
@@ -186,7 +186,7 @@
                 padding: .45rem;
                 border: 1px solid var(--ui-border-strong);
                 border-radius: 1.5rem;
-                background: var(--chrome-bg);
+                background: var(--sidebar-bg);
                 box-shadow: 0 18px 45px var(--shadow-color);
                 backdrop-filter: blur(18px);
             }
@@ -232,7 +232,7 @@
     @endphp
 
     <!-- Sidebar -->
-    <aside class="app-sidebar w-full md:w-auto bg-slate-900/50 backdrop-blur-xl border-b md:border-b-0 md:border-r border-slate-800/60 flex flex-col shrink-0">
+    <aside {!! \App\Support\Theme::toneAttributes('sidebar') !!} class="app-sidebar w-full md:w-auto bg-slate-900/50 backdrop-blur-xl border-b md:border-b-0 md:border-r border-slate-800/60 flex flex-col shrink-0">
         <!-- Logo Header -->
         <div class="h-16 flex items-center px-4 border-b border-slate-800/60 justify-between">
             @php
@@ -584,7 +584,7 @@
     <!-- Main Content Area -->
     <main class="flex-1 flex flex-col overflow-y-auto min-w-0">
         <!-- Top Bar Header -->
-        <header class="h-16 border-b border-slate-800/60 flex items-center justify-between px-4 md:px-6 bg-slate-900/10 backdrop-blur-sm shrink-0">
+        <header {!! \App\Support\Theme::toneAttributes('header') !!} class="h-16 border-b border-slate-800/60 flex items-center justify-between px-4 md:px-6 bg-slate-900/10 backdrop-blur-sm shrink-0">
             <div class="flex items-center gap-3 min-w-0">
                 <button
                     type="button"
@@ -695,7 +695,7 @@
         </div>
     </main>
 
-    <nav class="android-bottom-nav" aria-label="Navigasi utama mobile">
+    <nav {!! \App\Support\Theme::toneAttributes('sidebar') !!} class="android-bottom-nav" aria-label="Navigasi utama mobile">
         @can('dashboard')
             <a href="{{ route('dashboard') }}" class="{{ $route === 'dashboard' ? 'is-active' : '' }}">
                 <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 12l9-9 9 9M5 10v10h14V10"/></svg>

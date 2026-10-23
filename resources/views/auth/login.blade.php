@@ -12,7 +12,7 @@
     
     <style>
         body {
-            font-family: 'Plus Jakarta Sans', 'Outfit', sans-serif;
+            font-family: var(--font-sans);
         }
         /* Fix Webkit Autofill Background */
         input:-webkit-autofill,

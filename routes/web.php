@@ -225,6 +225,7 @@ Route::middleware(['auth'])->group(function () {
     Route::post('settings/permissions', [SettingsController::class, 'updatePermissions'])->name('settings.permissions')->middleware('can:settings');
     Route::post('settings/mikrotik-webhook/regenerate', [SettingsController::class, 'regenerateMikrotikWebhookToken'])->name('settings.mikrotik-webhook.regenerate')->middleware('can:settings');
     Route::post('settings/theme', [\App\Http\Controllers\ThemeSettingController::class, 'update'])->name('settings.theme')->middleware('can:settings');
+    Route::post('settings/theme/preview', [\App\Http\Controllers\ThemeSettingController::class, 'preview'])->name('settings.theme.preview')->middleware(['can:settings', 'throttle:120,1']);
     Route::post('settings/theme/reset', [\App\Http\Controllers\ThemeSettingController::class, 'reset'])->name('settings.theme.reset')->middleware('can:settings');
     Route::post('settings/dashboard-interfaces', [SettingsController::class, 'updateDashboardInterfaces'])->name('settings.dashboard_interfaces')->middleware('can:settings');
 

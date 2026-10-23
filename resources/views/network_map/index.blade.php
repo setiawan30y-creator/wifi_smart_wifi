@@ -23,7 +23,7 @@
     }
     .leaflet-popup-content {
         margin: 12px 16px;
-        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-family: var(--font-sans);
     }
     .leaflet-container a.leaflet-popup-close-button {
         color: #94a3b8 !important;
@@ -51,7 +51,7 @@
         border: 1px solid rgba(148, 163, 184, 0.35);
         border-radius: 999px;
         color: #f8fafc;
-        font-family: 'Plus Jakarta Sans', sans-serif;
+        font-family: var(--font-sans);
         font-size: 10px;
         font-weight: 800;
         letter-spacing: 0;
