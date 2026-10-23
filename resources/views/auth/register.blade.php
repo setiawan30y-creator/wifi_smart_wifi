@@ -9,27 +9,27 @@
     <style>
         body {
             font-family: 'Outfit', sans-serif;
-            background-color: #0f172a;
+            background-color: var(--neutral-900);
             background-image: 
                 radial-gradient(at 0% 0%, hsla(253,16%,7%,1) 0, transparent 50%), 
                 radial-gradient(at 50% 0%, hsla(225,39%,30%,0.2) 0, transparent 50%), 
                 radial-gradient(at 100% 0%, hsla(339,49%,30%,0.2) 0, transparent 50%);
         }
         .glass-panel {
-            background: rgba(30, 41, 59, 0.7);
+            background: color-mix(in oklab, var(--neutral-800) 70%, transparent);
             backdrop-filter: blur(16px);
             -webkit-backdrop-filter: blur(16px);
             border: 1px solid rgba(255, 255, 255, 0.05);
         }
         .input-glass {
-            background: rgba(15, 23, 42, 0.6);
+            background: color-mix(in oklab, var(--neutral-900) 60%, transparent);
             border: 1px solid rgba(255, 255, 255, 0.1);
             color: white;
             transition: all 0.3s ease;
         }
         .input-glass:focus {
-            border-color: #6366f1;
-            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+            border-color: var(--brand-500);
+            box-shadow: 0 0 0 2px color-mix(in oklab, var(--brand-500) 20%, transparent);
             outline: none;
         }
     </style>

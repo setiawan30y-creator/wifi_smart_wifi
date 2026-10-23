@@ -19,14 +19,15 @@
         input:-webkit-autofill:hover, 
         input:-webkit-autofill:focus, 
         input:-webkit-autofill:active {
-            -webkit-box-shadow: 0 0 0 30px #020617 inset !important;
-            -webkit-text-fill-color: #f1f5f9 !important;
+            -webkit-box-shadow: 0 0 0 30px var(--neutral-950) inset !important;
+            -webkit-text-fill-color: var(--neutral-100) !important;
             transition: background-color 5000s ease-in-out 0s;
         }
     </style>
 
     <!-- Vite Styles & Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('layouts.partials.theme')
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center antialiased relative overflow-hidden select-none p-4">
 

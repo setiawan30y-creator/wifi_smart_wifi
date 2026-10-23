@@ -54,16 +54,16 @@
         min-width: 1180px;
     }
     .notebook-table thead tr {
-        background: rgba(15, 23, 42, 0.92);
+        background: color-mix(in oklab, var(--neutral-900) 92%, transparent);
     }
     .notebook-table th,
     .notebook-table td {
-        border: 1px solid rgba(51, 65, 85, 0.78);
+        border: 1px solid color-mix(in oklab, var(--neutral-700) 78%, transparent);
         padding: 2px 5px !important;
         vertical-align: middle;
     }
     .notebook-table th {
-        color: #cbd5e1;
+        color: var(--neutral-300);
         font-size: 8.5px;
         letter-spacing: 0;
         white-space: nowrap;
@@ -71,10 +71,10 @@
         padding-top: 3px !important;
     }
     .notebook-table tbody tr:nth-child(even) {
-        background: rgba(15, 23, 42, 0.22);
+        background: color-mix(in oklab, var(--neutral-900) 22%, transparent);
     }
     .notebook-table tbody tr:hover {
-        background: rgba(79, 70, 229, 0.12);
+        background: color-mix(in oklab, var(--brand-600) 12%, transparent);
     }
     .notebook-table .customer-select-checkbox,
     .notebook-table #select-all-customers {
@@ -113,18 +113,18 @@
         right: 0;
         z-index: 15;
         min-width: 292px;
-        background: rgba(15, 23, 42, 0.96);
+        background: color-mix(in oklab, var(--neutral-900) 96%, transparent);
         box-shadow: -14px 0 22px -20px rgba(0, 0, 0, 0.95);
     }
     .notebook-table thead .customer-actions-col {
         z-index: 25;
-        background: rgba(15, 23, 42, 0.98);
+        background: color-mix(in oklab, var(--neutral-900) 98%, transparent);
     }
     .notebook-table tbody tr:nth-child(even) .customer-actions-col {
-        background: rgba(15, 23, 42, 0.98);
+        background: color-mix(in oklab, var(--neutral-900) 98%, transparent);
     }
     .notebook-table tbody tr:hover .customer-actions-col {
-        background: rgb(30, 41, 59);
+        background: var(--neutral-800);
     }
     .notebook-table .cell-tight {
         padding: 2px 5px !important;
@@ -213,16 +213,16 @@
 
         .notebook-table tr {
             overflow: hidden;
-            border: 1px solid rgba(51, 65, 85, .78);
+            border: 1px solid color-mix(in oklab, var(--neutral-700) 78%, transparent);
             border-radius: 1rem;
-            background: rgba(15, 23, 42, .72);
-            box-shadow: 0 14px 28px -24px rgba(2, 6, 23, .95);
+            background: color-mix(in oklab, var(--neutral-900) 72%, transparent);
+            box-shadow: 0 14px 28px -24px color-mix(in oklab, var(--neutral-950) 95%, transparent);
         }
 
         .notebook-table td {
             height: auto;
             border: 0;
-            border-bottom: 1px solid rgba(51, 65, 85, .55);
+            border-bottom: 1px solid color-mix(in oklab, var(--neutral-700) 55%, transparent);
             padding: .7rem .85rem !important;
         }
 
@@ -233,7 +233,7 @@
         .notebook-table td:not(:first-child):not(.customer-actions-col)::before {
             display: block;
             margin-bottom: .25rem;
-            color: #64748b;
+            color: var(--neutral-500);
             font-size: 10px;
             font-weight: 800;
             text-transform: uppercase;
@@ -250,7 +250,7 @@
         .notebook-table .customer-actions-col {
             position: static;
             min-width: 0;
-            background: rgba(2, 6, 23, .42) !important;
+            background: color-mix(in oklab, var(--neutral-950) 42%, transparent) !important;
             box-shadow: none;
             text-align: left;
             white-space: normal;

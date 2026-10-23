@@ -4,8 +4,8 @@
 <style>
     .settings-page .settings-card {
         border-radius: .9rem !important;
-        border: 1px solid rgba(71, 85, 105, .42) !important;
-        background: rgba(15, 23, 42, .72) !important;
+        border: 1px solid color-mix(in oklab, var(--neutral-600) 42%, transparent) !important;
+        background: color-mix(in oklab, var(--neutral-900) 72%, transparent) !important;
         padding: 1rem !important;
     }
 
@@ -14,7 +14,7 @@
         align-items: center;
         justify-content: space-between;
         gap: .75rem;
-        border-bottom: 1px solid rgba(51, 65, 85, .65);
+        border-bottom: 1px solid color-mix(in oklab, var(--neutral-700) 65%, transparent);
         padding-bottom: .55rem;
     }
 
@@ -25,15 +25,15 @@
         align-items: center;
         justify-content: center;
         border-radius: .55rem;
-        border: 1px solid rgba(71, 85, 105, .7);
-        background: rgba(2, 6, 23, .55);
-        color: #94a3b8;
+        border: 1px solid color-mix(in oklab, var(--neutral-600) 70%, transparent);
+        background: color-mix(in oklab, var(--neutral-950) 55%, transparent);
+        color: var(--neutral-400);
         transition: background-color 150ms ease, color 150ms ease, border-color 150ms ease;
     }
 
     .settings-page .settings-card-toggle:hover {
-        border-color: rgba(129, 140, 248, .55);
-        background: rgba(79, 70, 229, .16);
+        border-color: color-mix(in oklab, var(--brand-400) 55%, transparent);
+        background: color-mix(in oklab, var(--brand-600) 16%, transparent);
         color: #fff;
     }
 
@@ -93,6 +93,9 @@
             Template WhatsApp
         </button>
         @endcan
+        <button onclick="switchTab('tab-appearance')" id="btn-tab-appearance" class="tab-btn px-5 py-3 border-b-2 font-semibold text-sm transition-all duration-300 border-transparent text-slate-400 hover:text-slate-200">
+            Tampilan &amp; Warna
+        </button>
         <button onclick="switchTab('tab-traffic')" id="btn-tab-traffic" class="tab-btn px-5 py-3 border-b-2 font-semibold text-sm transition-all duration-300 border-transparent text-slate-400 hover:text-slate-200">
             Trafik Dashboard
         </button>
@@ -1008,6 +1011,10 @@
     </div>
     @endcan
     <!-- TAB: Trafik Dashboard -->
+    <div id="tab-appearance" class="tab-content hidden">
+        @include('settings.partials.appearance')
+    </div>
+
     <div id="tab-traffic" class="tab-content hidden space-y-6">
         <div class="max-w-3xl bg-slate-900/40 border border-slate-800/60 backdrop-blur-md rounded-3xl p-6 md:p-8">
             <h3 class="text-xl font-bold text-white mb-2">Pengaturan Trafik Jaringan</h3>

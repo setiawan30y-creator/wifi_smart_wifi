@@ -23,6 +23,7 @@
     </style>
 
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('layouts.partials.theme')
 </head>
 <body class="bg-gray-100 antialiased selection:bg-indigo-500 selection:text-white tap-highlight-transparent">
 

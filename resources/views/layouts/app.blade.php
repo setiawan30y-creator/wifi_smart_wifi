@@ -4,15 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="csrf-token" content="{{ csrf_token() }}">
-    <meta name="theme-color" content="#4f46e5">
+    <meta name="theme-color" content="{{ \App\Support\Theme::brand() }}">
     <meta name="mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-capable" content="yes">
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
     <meta name="apple-mobile-web-app-title" content="SmartBilling">
     <script>
         (function () {
-            const savedTheme = localStorage.getItem('wifi_smartbilling_theme');
-            const theme = savedTheme || (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark');
+            let savedTheme = null;
+            try { savedTheme = localStorage.getItem('wifi_smartbilling_theme'); } catch (e) {}
+            const tenantDefault = @json(\App\Support\Theme::defaultMode());
+            const theme = savedTheme || (tenantDefault !== 'system' ? tenantDefault : (window.matchMedia('(prefers-color-scheme: light)').matches ? 'light' : 'dark'));
             document.documentElement.dataset.theme = theme;
         }());
     </script>
@@ -95,7 +97,7 @@
             }
 
             .app-sidebar nav a[class*="bg-indigo-600"] {
-                box-shadow: inset 3px 0 0 #a5b4fc, 0 10px 22px rgba(79, 70, 229, 0.18);
+                box-shadow: inset 3px 0 0 var(--brand-300), 0 10px 22px color-mix(in oklab, var(--brand-600) 18%, transparent);
             }
 
             .app-sidebar nav a[class*="bg-indigo-600"] svg {
@@ -118,8 +120,8 @@
                 padding-top: 4.25rem;
                 padding-bottom: calc(5.75rem + env(safe-area-inset-bottom));
                 background:
-                    radial-gradient(circle at top left, rgba(79, 70, 229, .16), transparent 34rem),
-                    #020617;
+                    radial-gradient(circle at top left, var(--page-glow), transparent 34rem),
+                    var(--page-bg) !important;
             }
 
             .app-sidebar {
@@ -140,9 +142,9 @@
                 height: 4.25rem !important;
                 padding-left: 1rem !important;
                 padding-right: 1rem !important;
-                background: rgba(2, 6, 23, .92) !important;
-                border-bottom: 1px solid rgba(30, 41, 59, .9);
-                box-shadow: 0 16px 34px -28px rgba(15, 23, 42, .95);
+                background: var(--chrome-bg) !important;
+                border-bottom: 1px solid var(--ui-border);
+                box-shadow: 0 16px 34px -28px var(--shadow-color);
             }
 
             main > header .uppercase {
@@ -182,10 +184,10 @@
                 grid-template-columns: repeat(5, minmax(0, 1fr));
                 gap: .25rem;
                 padding: .45rem;
-                border: 1px solid rgba(51, 65, 85, .75);
+                border: 1px solid var(--ui-border-strong);
                 border-radius: 1.5rem;
-                background: rgba(15, 23, 42, .94);
-                box-shadow: 0 18px 45px rgba(2, 6, 23, .72);
+                background: var(--chrome-bg);
+                box-shadow: 0 18px 45px var(--shadow-color);
                 backdrop-filter: blur(18px);
             }
 
@@ -199,7 +201,7 @@
                 align-items: center;
                 justify-content: center;
                 gap: .25rem;
-                color: #94a3b8;
+                color: var(--neutral-400);
                 font-size: 10px;
                 font-weight: 700;
                 line-height: 1;
@@ -213,15 +215,16 @@
             }
 
             .android-bottom-nav a.is-active {
-                background: linear-gradient(135deg, #4f46e5, #7c3aed);
+                background: linear-gradient(135deg, var(--brand-600), var(--accent-600));
                 color: #fff;
-                box-shadow: 0 10px 22px rgba(79, 70, 229, .28);
+                box-shadow: 0 10px 22px color-mix(in oklab, var(--brand-600) 28%, transparent);
             }
         }
     </style>
 
     <!-- Vite Styles & Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('layouts.partials.theme')
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex flex-col md:flex-row antialiased selection:bg-indigo-500 selection:text-white">
     @php
@@ -247,7 +250,7 @@
                     </div>
                 @endif
                 <div class="sidebar-reveal">
-                    <h1 class="font-bold text-base leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-white via-slate-100 to-slate-300">{{ $companyName }}</h1>
+                    <h1 class="font-bold text-base leading-tight tracking-tight bg-clip-text text-transparent bg-gradient-to-r from-slate-50 via-slate-100 to-slate-300">{{ $companyName }}</h1>
                     <span class="text-[10px] text-indigo-400 font-semibold uppercase tracking-wider">Premium Panel</span>
                 </div>
             </a>

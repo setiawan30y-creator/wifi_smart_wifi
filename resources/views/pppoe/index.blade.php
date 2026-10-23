@@ -8,16 +8,16 @@
         line-height: 1.25;
     }
     .notebook-table thead tr {
-        background: rgba(15, 23, 42, 0.92);
+        background: color-mix(in oklab, var(--neutral-900) 92%, transparent);
     }
     .notebook-table th,
     .notebook-table td {
-        border: 1px solid rgba(51, 65, 85, 0.72);
+        border: 1px solid color-mix(in oklab, var(--neutral-700) 72%, transparent);
         padding: 7px 9px !important;
         vertical-align: middle;
     }
     .notebook-table th {
-        color: #cbd5e1;
+        color: var(--neutral-300);
         font-size: 10px;
         letter-spacing: 0;
         white-space: nowrap;
@@ -25,10 +25,10 @@
         padding-top: 6px !important;
     }
     .notebook-table tbody tr:nth-child(even) {
-        background: rgba(15, 23, 42, 0.22);
+        background: color-mix(in oklab, var(--neutral-900) 22%, transparent);
     }
     .notebook-table tbody tr:hover {
-        background: rgba(79, 70, 229, 0.12);
+        background: color-mix(in oklab, var(--brand-600) 12%, transparent);
     }
     .notebook-table td:last-child button,
     .notebook-table td:last-child a {

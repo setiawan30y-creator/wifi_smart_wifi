@@ -14,8 +14,8 @@ class Setting extends Model
 
     protected static function booted(): void
     {
-        static::saved(fn () => \App\Support\Permissions::flush());
-        static::deleted(fn () => \App\Support\Permissions::flush());
+        static::saved(function () { \App\Support\Permissions::flush(); \App\Support\Theme::flush(); });
+        static::deleted(function () { \App\Support\Permissions::flush(); \App\Support\Theme::flush(); });
     }
 
     /**

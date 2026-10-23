@@ -18,6 +18,7 @@
 
     <!-- Vite Styles & Scripts -->
     @vite(['resources/css/app.css', 'resources/js/app.js'])
+    @include('layouts.partials.theme')
 </head>
 <body class="bg-slate-950 text-slate-100 min-h-screen flex items-center justify-center antialiased relative overflow-hidden p-4">
 

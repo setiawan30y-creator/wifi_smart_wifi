@@ -3,8 +3,8 @@
 @section('content')
 <style>
     .dashboard-page {
-        --dash-card-bg: rgba(15, 23, 42, .74);
-        --dash-card-border: rgba(71, 85, 105, .38);
+        --dash-card-bg: color-mix(in oklab, var(--neutral-900) 74%, transparent);
+        --dash-card-border: color-mix(in oklab, var(--neutral-600) 38%, transparent);
     }
 
     .dashboard-page > div {
@@ -41,7 +41,7 @@
         background: var(--dash-card-bg) !important;
         border-radius: .85rem !important;
         padding: 1rem !important;
-        box-shadow: 0 16px 34px -30px rgba(2, 6, 23, .95) !important;
+        box-shadow: 0 16px 34px -30px color-mix(in oklab, var(--neutral-950) 95%, transparent) !important;
     }
 
     .dashboard-page .dashboard-kpi-card .absolute[class*="blur"] {
@@ -66,7 +66,7 @@
         background: var(--dash-card-bg) !important;
         border-radius: .85rem !important;
         padding: 1rem !important;
-        box-shadow: 0 16px 34px -30px rgba(2, 6, 23, .95) !important;
+        box-shadow: 0 16px 34px -30px color-mix(in oklab, var(--neutral-950) 95%, transparent) !important;
     }
 
     .dashboard-page #traffic-container {
@@ -87,7 +87,7 @@
     }
 
     .dashboard-page table thead tr {
-        border-bottom-color: rgba(71, 85, 105, .52) !important;
+        border-bottom-color: color-mix(in oklab, var(--neutral-600) 52%, transparent) !important;
     }
 
     @media (max-width: 767px) {

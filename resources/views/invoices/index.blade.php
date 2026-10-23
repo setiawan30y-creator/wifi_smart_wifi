@@ -18,17 +18,17 @@
     }
     .invoice-notebook-table th,
     .invoice-notebook-table td {
-        border-right: 1px solid rgba(71, 85, 105, .38);
-        border-bottom: 1px solid rgba(71, 85, 105, .38);
+        border-right: 1px solid color-mix(in oklab, var(--neutral-600) 38%, transparent);
+        border-bottom: 1px solid color-mix(in oklab, var(--neutral-600) 38%, transparent);
         vertical-align: middle;
     }
     .invoice-notebook-table th:first-child,
     .invoice-notebook-table td:first-child {
-        border-left: 1px solid rgba(71, 85, 105, .38);
+        border-left: 1px solid color-mix(in oklab, var(--neutral-600) 38%, transparent);
     }
     .invoice-notebook-table thead th {
-        border-top: 1px solid rgba(71, 85, 105, .38);
-        background: rgba(15, 23, 42, .92);
+        border-top: 1px solid color-mix(in oklab, var(--neutral-600) 38%, transparent);
+        background: color-mix(in oklab, var(--neutral-900) 92%, transparent);
     }
     .invoice-notebook-table .invoice-actions-col {
         position: sticky;
@@ -39,13 +39,13 @@
     }
     .invoice-notebook-table thead .invoice-actions-col {
         z-index: 25;
-        background: rgba(15, 23, 42, .98);
+        background: color-mix(in oklab, var(--neutral-900) 98%, transparent);
     }
     .invoice-notebook-table tbody .invoice-actions-col {
-        background: rgba(15, 23, 42, .96);
+        background: color-mix(in oklab, var(--neutral-900) 96%, transparent);
     }
     .invoice-notebook-table tbody tr:hover .invoice-actions-col {
-        background: rgb(30, 41, 59);
+        background: var(--neutral-800);
     }
     .payment-detail-panel {
         height: min(88vh, 860px);
@@ -57,17 +57,17 @@
         overflow-y: auto;
         overscroll-behavior: contain;
         scrollbar-width: thin;
-        scrollbar-color: rgba(99, 102, 241, .75) rgba(15, 23, 42, .9);
+        scrollbar-color: color-mix(in oklab, var(--brand-500) 75%, transparent) color-mix(in oklab, var(--neutral-900) 90%, transparent);
     }
     .payment-detail-body::-webkit-scrollbar {
         width: 9px;
     }
     .payment-detail-body::-webkit-scrollbar-track {
-        background: rgba(15, 23, 42, .9);
+        background: color-mix(in oklab, var(--neutral-900) 90%, transparent);
         border-radius: 999px;
     }
     .payment-detail-body::-webkit-scrollbar-thumb {
-        background: rgba(99, 102, 241, .75);
+        background: color-mix(in oklab, var(--brand-500) 75%, transparent);
         border-radius: 999px;
     }
     .edit-payment-overlay {
@@ -155,15 +155,15 @@
 
         .invoice-notebook-table tr {
             overflow: hidden;
-            border: 1px solid rgba(51, 65, 85, .78);
+            border: 1px solid color-mix(in oklab, var(--neutral-700) 78%, transparent);
             border-radius: 1rem;
-            background: rgba(15, 23, 42, .72);
-            box-shadow: 0 14px 28px -24px rgba(2, 6, 23, .95);
+            background: color-mix(in oklab, var(--neutral-900) 72%, transparent);
+            box-shadow: 0 14px 28px -24px color-mix(in oklab, var(--neutral-950) 95%, transparent);
         }
 
         .invoice-notebook-table td {
             border: 0;
-            border-bottom: 1px solid rgba(51, 65, 85, .55);
+            border-bottom: 1px solid color-mix(in oklab, var(--neutral-700) 55%, transparent);
             padding: .7rem .85rem !important;
         }
 
@@ -174,7 +174,7 @@
         .invoice-notebook-table td:not(:first-child):not(.invoice-actions-col)::before {
             display: block;
             margin-bottom: .25rem;
-            color: #64748b;
+            color: var(--neutral-500);
             font-size: 10px;
             font-weight: 800;
             text-transform: uppercase;
@@ -190,7 +190,7 @@
         .invoice-notebook-table .invoice-actions-col {
             position: static;
             min-width: 0;
-            background: rgba(2, 6, 23, .42);
+            background: color-mix(in oklab, var(--neutral-950) 42%, transparent);
             box-shadow: none;
             text-align: left;
             white-space: normal;

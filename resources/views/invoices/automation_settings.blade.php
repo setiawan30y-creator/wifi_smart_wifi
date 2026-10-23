@@ -43,49 +43,39 @@
 @endphp
 
 <style>
+    /* Semua warna halaman ini diambil dari token tema global (resources/css/app.css). */
     .ba {
-        --ba-card: rgba(15, 23, 42, .72);
-        --ba-card-2: rgba(2, 6, 23, .45);
-        --ba-line: rgba(71, 85, 105, .36);
-        --ba-line-strong: rgba(100, 116, 139, .5);
-        --ba-text: #e5edf7;
-        --ba-strong: #f8fafc;
-        --ba-muted: #94a3b8;
-        --ba-soft: #64748b;
-        --ba-field: rgba(2, 6, 23, .6);
-        --ba-primary: #6366f1;
-        --ba-primary-strong: #4f46e5;
-        --ba-sky: #38bdf8;
-        --ba-amber: #f59e0b;
-        --ba-rose: #f43f5e;
-        --ba-violet: #a78bfa;
-        --ba-emerald: #10b981;
-        --ba-bubble: #134e4a;
-        --ba-bubble-text: #ecfdf5;
-        --ba-chat: rgba(2, 6, 23, .55);
+        --ba-card: var(--ui-card);
+        --ba-card-2: color-mix(in oklab, var(--neutral-950) 40%, transparent);
+        --ba-line: var(--ui-border);
+        --ba-line-strong: var(--ui-border-strong);
+        --ba-text: var(--ui-text);
+        --ba-strong: var(--ui-text-strong);
+        --ba-muted: var(--ui-text-muted);
+        --ba-soft: var(--ui-text-soft);
+        --ba-field: var(--ui-input-bg);
+        --ba-primary: var(--brand-500);
+        --ba-primary-strong: var(--brand-600);
+        --ba-sky: var(--info-400);
+        --ba-amber: var(--warning);
+        --ba-rose: var(--danger);
+        --ba-violet: var(--accent-400);
+        --ba-emerald: var(--success);
+        --ba-bubble: color-mix(in oklab, var(--success-800) 80%, var(--neutral-900));
+        --ba-bubble-text: var(--success-50);
+        --ba-chat: color-mix(in oklab, var(--neutral-950) 55%, transparent);
         color: var(--ba-text);
     }
     html[data-theme="light"] .ba {
-        --ba-card: #ffffff;
-        --ba-card-2: #f8fafc;
-        --ba-line: #e2e8f0;
-        --ba-line-strong: #cbd5e1;
-        --ba-text: #334155;
-        --ba-strong: #0f172a;
-        --ba-muted: #64748b;
-        --ba-soft: #94a3b8;
-        --ba-field: #ffffff;
-        --ba-bubble: #dcfce7;
-        --ba-bubble-text: #14532d;
-        --ba-chat: #f1f5f9;
+        --ba-card-2: var(--neutral-900);
+        --ba-chat: var(--neutral-900);
     }
 
     .ba h1, .ba h2, .ba h3 { color: var(--ba-strong); }
     .ba-muted { color: var(--ba-muted); }
     .ba-soft { color: var(--ba-soft); }
 
-    .ba-card { background: var(--ba-card); border: 1px solid var(--ba-line); border-radius: 1rem; box-shadow: 0 16px 40px -34px rgba(2, 6, 23, .9); }
-    html[data-theme="light"] .ba-card { box-shadow: 0 10px 30px -24px rgba(15, 23, 42, .25); }
+    .ba-card { background: var(--ba-card); border: 1px solid var(--ba-line); border-radius: 1rem; box-shadow: var(--ui-shadow-card); }
 
     /* Ringkasan */
     .ba-stat { display: flex; gap: .85rem; align-items: flex-start; padding: 1rem; }
@@ -115,10 +105,8 @@
     .ba-hint { font-size: .7rem; color: var(--ba-soft); margin-top: .4rem; line-height: 1.05rem; }
     .ba-field { width: 100%; border: 1px solid var(--ba-line-strong); background: var(--ba-field); color: var(--ba-strong); border-radius: .7rem; padding: .55rem .75rem; font-size: .84rem; outline: none; transition: border-color .12s ease, box-shadow .12s ease; }
     .ba-field:focus { border-color: var(--ba-primary); box-shadow: 0 0 0 3px color-mix(in srgb, var(--ba-primary) 22%, transparent); }
-    .ba-field option { background: #0f172a; color: #e2e8f0; }
-    html[data-theme="light"] .ba-field option { background: #fff; color: #0f172a; }
-    .ba-invalid { border-color: rgba(244, 63, 94, .75) !important; }
-    .ba-error { font-size: .7rem; color: #fb7185; margin-top: .35rem; }
+    .ba-invalid { border-color: var(--danger) !important; }
+    .ba-error { font-size: .7rem; color: var(--danger-400); margin-top: .35rem; }
     .ba-suffix { position: relative; }
     .ba-suffix span { position: absolute; right: .75rem; top: 50%; transform: translateY(-50%); font-size: .72rem; color: var(--ba-soft); pointer-events: none; }
     .ba-suffix .ba-field { padding-right: 3.2rem; }
@@ -173,7 +161,7 @@
     /* Lain-lain */
     .ba-btn { display: inline-flex; align-items: center; justify-content: center; gap: .45rem; border-radius: .7rem; padding: .55rem .95rem; font-size: .8rem; font-weight: 700; border: 1px solid var(--ba-line-strong); background: var(--ba-card); color: var(--ba-text); transition: background .12s ease, border-color .12s ease; }
     .ba-btn:hover { border-color: var(--ba-primary); color: var(--ba-strong); }
-    .ba-btn-primary { border-color: transparent; background: linear-gradient(135deg, var(--ba-primary-strong), #2563eb); color: #fff; box-shadow: 0 10px 24px -14px rgba(79, 70, 229, .9); }
+    .ba-btn-primary { border-color: transparent; background: linear-gradient(135deg, var(--brand-600), var(--accent-600)); color: #fff; box-shadow: 0 10px 24px -14px color-mix(in oklab, var(--brand-600) 90%, transparent); }
     .ba-btn-primary:hover { color: #fff; filter: brightness(1.08); }
     .ba-btn svg { width: 1rem; height: 1rem; }
 
@@ -183,7 +171,7 @@
     .ba-ph { display: flex; align-items: center; justify-content: space-between; gap: .5rem; width: 100%; padding: .45rem .6rem; border-radius: .55rem; font-size: .72rem; text-align: left; transition: background .12s ease; }
     .ba-ph:hover { background: var(--ba-card-2); }
     .ba-ph code { color: var(--ba-primary); font-weight: 700; font-size: .72rem; }
-    html:not([data-theme="light"]) .ba-ph code { color: #a5b4fc; }
+    html:not([data-theme="light"]) .ba-ph code { color: var(--brand-300); }
     .ba-ph span { color: var(--ba-soft); }
 
     .ba-table { width: 100%; font-size: .76rem; border-collapse: collapse; }
@@ -191,17 +179,11 @@
     .ba-table td { padding: .55rem .75rem; border-bottom: 1px solid var(--ba-line); color: var(--ba-text); }
     .ba-tag { display: inline-flex; padding: .12rem .45rem; border-radius: .4rem; font-size: .68rem; font-weight: 800; color: var(--tone); background: color-mix(in srgb, var(--tone) 14%, transparent); }
 
-    .ba-savebar { position: sticky; bottom: .75rem; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; padding: .7rem .8rem .7rem 1rem; border-radius: 1rem; border: 1px solid var(--ba-line-strong); background: color-mix(in srgb, var(--ba-card) 92%, transparent); backdrop-filter: blur(10px); box-shadow: 0 18px 40px -20px rgba(2, 6, 23, .7); }
+    .ba-savebar { position: sticky; bottom: .75rem; z-index: 20; display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: .75rem; padding: .7rem .8rem .7rem 1rem; border-radius: 1rem; border: 1px solid var(--ba-line-strong); background: color-mix(in srgb, var(--ba-card) 92%, transparent); backdrop-filter: blur(10px); box-shadow: 0 18px 40px -20px var(--shadow-color); }
     .ba-savebar p { font-size: .74rem; color: var(--ba-muted); }
     .ba-savebar p.is-dirty { color: var(--ba-amber); font-weight: 700; }
     @media (max-width: 767px) { .ba-savebar { bottom: 5.5rem; } }
 
-    /* Aturan input global aplikasi memakai !important di @layer components; agar kolom di
-       halaman ini ikut mode terang, aturannya ditaruh di @layer base (layer awal menang untuk !important). */
-    @layer base {
-        html[data-theme="light"] .ba .ba-field { background-color: #ffffff !important; color: #0f172a !important; border-color: #cbd5e1 !important; }
-        html[data-theme="light"] .ba .ba-add input { background-color: transparent !important; color: #0f172a !important; border: 0 !important; }
-    }
     .ba .ba-add input { background-color: transparent !important; border: 0 !important; box-shadow: none !important; }
 
     .ba details > summary { list-style: none; cursor: pointer; }
@@ -218,8 +200,8 @@
                 <svg class="h-3.5 w-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
                 Tagihan &amp; Invoice
             </a>
-            <h1 class="mt-1 text-2xl font-extrabold tracking-tight" style="color: #f8fafc">Otomatis Tagihan</h1>
-            <p class="mt-1 max-w-2xl text-sm text-slate-400">Atur kapan tagihan terbit dan kapan pelanggan diingatkan lewat WhatsApp. Hanya untuk pelanggan berstatus <b style="color: #e2e8f0">Aktif</b>; pelanggan nonaktif, isolir, dan gratis dilewati.</p>
+            <h1 class="mt-1 text-2xl font-extrabold tracking-tight">Otomatis Tagihan</h1>
+            <p class="mt-1 max-w-2xl text-sm text-slate-400">Atur kapan tagihan terbit dan kapan pelanggan diingatkan lewat WhatsApp. Hanya untuk pelanggan berstatus <b class="text-white">Aktif</b>; pelanggan nonaktif, isolir, dan gratis dilewati.</p>
         </div>
         <button type="submit" form="ba-form" class="ba-btn ba-btn-primary self-start md:self-auto">
             <svg fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"/></svg>

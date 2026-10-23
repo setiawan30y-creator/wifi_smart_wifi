@@ -8,16 +8,16 @@
         line-height: 1.25;
     }
     .odp-notebook-table thead tr {
-        background: rgba(15, 23, 42, 0.96);
+        background: color-mix(in oklab, var(--neutral-900) 96%, transparent);
     }
     .odp-notebook-table th,
     .odp-notebook-table td {
-        border: 1px solid rgba(51, 65, 85, 0.72);
+        border: 1px solid color-mix(in oklab, var(--neutral-700) 72%, transparent);
         padding: 7px 9px !important;
         vertical-align: middle;
     }
     .odp-notebook-table th {
-        color: #cbd5e1;
+        color: var(--neutral-300);
         font-size: 10px;
         font-weight: 800;
         letter-spacing: 0;
@@ -27,10 +27,10 @@
         z-index: 2;
     }
     .odp-notebook-table tbody tr:nth-child(even) {
-        background: rgba(15, 23, 42, 0.24);
+        background: color-mix(in oklab, var(--neutral-900) 24%, transparent);
     }
     .odp-notebook-table tbody tr:hover {
-        background: rgba(79, 70, 229, 0.12);
+        background: color-mix(in oklab, var(--brand-600) 12%, transparent);
     }
     .odp-notebook-table .odp-chip {
         border-radius: 6px;

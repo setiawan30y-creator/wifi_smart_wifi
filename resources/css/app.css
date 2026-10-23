@@ -3,38 +3,431 @@
 @source '../../vendor/laravel/framework/src/Illuminate/Pagination/resources/views/*.blade.php';
 @source '../../storage/framework/views/*.php';
 
+/*
+ * ============================================================================
+ *  TEMA WARNA — SATU SUMBER
+ * ============================================================================
+ *  Semua halaman memakai class Tailwind (bg-indigo-600, text-emerald-400,
+ *  border-slate-800, ...). Palet-palet itu di bawah ini diarahkan ke beberapa
+ *  WARNA DASAR, sehingga mengganti satu warna dasar mengubah seluruh aplikasi:
+ *
+ *    --brand    warna utama   → class indigo-*, blue-*
+ *    --accent   warna kedua   → class purple-*, violet-*, fuchsia-*
+ *    --success  berhasil/lunas→ class emerald-*, green-*, teal-*
+ *    --warning  peringatan    → class amber-*, yellow-*, orange-*
+ *    --danger   bahaya/tunggak→ class rose-*, red-*
+ *    --info     informasi     → class sky-*, cyan-*
+ *    --neutral-* latar, kartu, garis, teks → class slate-*, gray-*
+ *
+ *  Warna dasar bawaan ada di :root. Tiap tenant bisa menggantinya dari
+ *  Pengaturan → Tampilan (disisipkan layout sebagai <style>:root{...}</style>).
+ *  Mode terang cukup menukar skala --neutral-* (lihat html[data-theme="light"]).
+ * ============================================================================
+ */
+:root {
+    --brand: #6366f1;
+    --accent: #a855f7;
+    --success: #10b981;
+    --warning: #f59e0b;
+    --danger: #f43f5e;
+    --info: #0ea5e9;
+
+    /* Skala turunan otomatis (50 paling terang … 950 paling gelap) */
+    --brand-50: color-mix(in oklab, var(--brand) 10%, white);
+    --brand-100: color-mix(in oklab, var(--brand) 18%, white);
+    --brand-200: color-mix(in oklab, var(--brand) 34%, white);
+    --brand-300: color-mix(in oklab, var(--brand) 55%, white);
+    --brand-400: color-mix(in oklab, var(--brand) 78%, white);
+    --brand-500: var(--brand);
+    --brand-600: color-mix(in oklab, var(--brand) 84%, black);
+    --brand-700: color-mix(in oklab, var(--brand) 68%, black);
+    --brand-800: color-mix(in oklab, var(--brand) 54%, black);
+    --brand-900: color-mix(in oklab, var(--brand) 42%, black);
+    --brand-950: color-mix(in oklab, var(--brand) 28%, black);
+    --accent-50: color-mix(in oklab, var(--accent) 10%, white);
+    --accent-100: color-mix(in oklab, var(--accent) 18%, white);
+    --accent-200: color-mix(in oklab, var(--accent) 34%, white);
+    --accent-300: color-mix(in oklab, var(--accent) 55%, white);
+    --accent-400: color-mix(in oklab, var(--accent) 78%, white);
+    --accent-500: var(--accent);
+    --accent-600: color-mix(in oklab, var(--accent) 84%, black);
+    --accent-700: color-mix(in oklab, var(--accent) 68%, black);
+    --accent-800: color-mix(in oklab, var(--accent) 54%, black);
+    --accent-900: color-mix(in oklab, var(--accent) 42%, black);
+    --accent-950: color-mix(in oklab, var(--accent) 28%, black);
+    --success-50: color-mix(in oklab, var(--success) 10%, white);
+    --success-100: color-mix(in oklab, var(--success) 18%, white);
+    --success-200: color-mix(in oklab, var(--success) 34%, white);
+    --success-300: color-mix(in oklab, var(--success) 55%, white);
+    --success-400: color-mix(in oklab, var(--success) 78%, white);
+    --success-500: var(--success);
+    --success-600: color-mix(in oklab, var(--success) 84%, black);
+    --success-700: color-mix(in oklab, var(--success) 68%, black);
+    --success-800: color-mix(in oklab, var(--success) 54%, black);
+    --success-900: color-mix(in oklab, var(--success) 42%, black);
+    --success-950: color-mix(in oklab, var(--success) 28%, black);
+    --warning-50: color-mix(in oklab, var(--warning) 10%, white);
+    --warning-100: color-mix(in oklab, var(--warning) 18%, white);
+    --warning-200: color-mix(in oklab, var(--warning) 34%, white);
+    --warning-300: color-mix(in oklab, var(--warning) 55%, white);
+    --warning-400: color-mix(in oklab, var(--warning) 78%, white);
+    --warning-500: var(--warning);
+    --warning-600: color-mix(in oklab, var(--warning) 84%, black);
+    --warning-700: color-mix(in oklab, var(--warning) 68%, black);
+    --warning-800: color-mix(in oklab, var(--warning) 54%, black);
+    --warning-900: color-mix(in oklab, var(--warning) 42%, black);
+    --warning-950: color-mix(in oklab, var(--warning) 28%, black);
+    --danger-50: color-mix(in oklab, var(--danger) 10%, white);
+    --danger-100: color-mix(in oklab, var(--danger) 18%, white);
+    --danger-200: color-mix(in oklab, var(--danger) 34%, white);
+    --danger-300: color-mix(in oklab, var(--danger) 55%, white);
+    --danger-400: color-mix(in oklab, var(--danger) 78%, white);
+    --danger-500: var(--danger);
+    --danger-600: color-mix(in oklab, var(--danger) 84%, black);
+    --danger-700: color-mix(in oklab, var(--danger) 68%, black);
+    --danger-800: color-mix(in oklab, var(--danger) 54%, black);
+    --danger-900: color-mix(in oklab, var(--danger) 42%, black);
+    --danger-950: color-mix(in oklab, var(--danger) 28%, black);
+    --info-50: color-mix(in oklab, var(--info) 10%, white);
+    --info-100: color-mix(in oklab, var(--info) 18%, white);
+    --info-200: color-mix(in oklab, var(--info) 34%, white);
+    --info-300: color-mix(in oklab, var(--info) 55%, white);
+    --info-400: color-mix(in oklab, var(--info) 78%, white);
+    --info-500: var(--info);
+    --info-600: color-mix(in oklab, var(--info) 84%, black);
+    --info-700: color-mix(in oklab, var(--info) 68%, black);
+    --info-800: color-mix(in oklab, var(--info) 54%, black);
+    --info-900: color-mix(in oklab, var(--info) 42%, black);
+    --info-950: color-mix(in oklab, var(--info) 28%, black);
+
+    /* Netral mode gelap (nilai slate asli Tailwind) */
+    --neutral-50: #f8fafc;
+    --neutral-100: #f1f5f9;
+    --neutral-200: #e2e8f0;
+    --neutral-300: #cbd5e1;
+    --neutral-400: #94a3b8;
+    --neutral-500: #64748b;
+    --neutral-600: #475569;
+    --neutral-700: #334155;
+    --neutral-800: #1e293b;
+    --neutral-900: #0f172a;
+    --neutral-950: #020617;
+    --on-surface-strong: #f8fafc;   /* teks utama di atas latar (class text-white) */
+    --page-bg: #070b14;
+    --page-glow: color-mix(in oklab, var(--brand) 16%, transparent);
+    --page-gradient: linear-gradient(180deg, #080d18 0%, #070b14 42%, #060914 100%);
+    --chrome-bg: rgba(8, 13, 26, .92);          /* sidebar */
+    --chrome-header-bg: rgba(8, 13, 26, .78);   /* header atas */
+    --shadow-color: rgba(2, 6, 23, .95);
+    color-scheme: dark;
+}
+
+html[data-theme="light"] {
+    --neutral-50: #020617;
+    --neutral-100: #0f172a;
+    --neutral-200: #1e293b;
+    --neutral-300: #334155;
+    --neutral-400: #5b6b82;
+    --neutral-500: #7a889c;
+    --neutral-600: #94a3b8;
+    --neutral-700: #cbd5e1;
+    --neutral-800: #e2e8f0;
+    --neutral-900: #f8fafc;
+    --neutral-950: #ffffff;
+    --on-surface-strong: #0f172a;
+    --page-bg: #f1f5f9;
+    --page-glow: color-mix(in oklab, var(--brand) 10%, transparent);
+    --page-gradient: linear-gradient(180deg, #f8fafc 0%, color-mix(in oklab, var(--brand) 6%, #f1f5f9) 100%);
+    --chrome-bg: rgba(255, 255, 255, .94);
+    --chrome-header-bg: rgba(255, 255, 255, .86);
+    --shadow-color: rgba(15, 23, 42, .28);
+
+    /* Skala warna dibalik untuk tingkat 50–400 dan 800–950: latar "gelap berwarna"
+       (mis. bg-indigo-900/40) menjadi tint terang, teks "terang berwarna"
+       (mis. text-indigo-300) menjadi lebih gelap agar terbaca di atas putih.
+       Tingkat 500–700 (tombol solid) tetap. */
+    --brand-50: color-mix(in oklab, var(--brand) 28%, black);
+    --brand-100: color-mix(in oklab, var(--brand) 42%, black);
+    --brand-200: color-mix(in oklab, var(--brand) 54%, black);
+    --brand-300: color-mix(in oklab, var(--brand) 68%, black);
+    --brand-400: color-mix(in oklab, var(--brand) 84%, black);
+    --brand-800: color-mix(in oklab, var(--brand) 34%, white);
+    --brand-900: color-mix(in oklab, var(--brand) 18%, white);
+    --brand-950: color-mix(in oklab, var(--brand) 10%, white);
+    --accent-50: color-mix(in oklab, var(--accent) 28%, black);
+    --accent-100: color-mix(in oklab, var(--accent) 42%, black);
+    --accent-200: color-mix(in oklab, var(--accent) 54%, black);
+    --accent-300: color-mix(in oklab, var(--accent) 68%, black);
+    --accent-400: color-mix(in oklab, var(--accent) 84%, black);
+    --accent-800: color-mix(in oklab, var(--accent) 34%, white);
+    --accent-900: color-mix(in oklab, var(--accent) 18%, white);
+    --accent-950: color-mix(in oklab, var(--accent) 10%, white);
+    --success-50: color-mix(in oklab, var(--success) 28%, black);
+    --success-100: color-mix(in oklab, var(--success) 42%, black);
+    --success-200: color-mix(in oklab, var(--success) 54%, black);
+    --success-300: color-mix(in oklab, var(--success) 68%, black);
+    --success-400: color-mix(in oklab, var(--success) 84%, black);
+    --success-800: color-mix(in oklab, var(--success) 34%, white);
+    --success-900: color-mix(in oklab, var(--success) 18%, white);
+    --success-950: color-mix(in oklab, var(--success) 10%, white);
+    --warning-50: color-mix(in oklab, var(--warning) 28%, black);
+    --warning-100: color-mix(in oklab, var(--warning) 42%, black);
+    --warning-200: color-mix(in oklab, var(--warning) 54%, black);
+    --warning-300: color-mix(in oklab, var(--warning) 68%, black);
+    --warning-400: color-mix(in oklab, var(--warning) 84%, black);
+    --warning-800: color-mix(in oklab, var(--warning) 34%, white);
+    --warning-900: color-mix(in oklab, var(--warning) 18%, white);
+    --warning-950: color-mix(in oklab, var(--warning) 10%, white);
+    --danger-50: color-mix(in oklab, var(--danger) 28%, black);
+    --danger-100: color-mix(in oklab, var(--danger) 42%, black);
+    --danger-200: color-mix(in oklab, var(--danger) 54%, black);
+    --danger-300: color-mix(in oklab, var(--danger) 68%, black);
+    --danger-400: color-mix(in oklab, var(--danger) 84%, black);
+    --danger-800: color-mix(in oklab, var(--danger) 34%, white);
+    --danger-900: color-mix(in oklab, var(--danger) 18%, white);
+    --danger-950: color-mix(in oklab, var(--danger) 10%, white);
+    --info-50: color-mix(in oklab, var(--info) 28%, black);
+    --info-100: color-mix(in oklab, var(--info) 42%, black);
+    --info-200: color-mix(in oklab, var(--info) 54%, black);
+    --info-300: color-mix(in oklab, var(--info) 68%, black);
+    --info-400: color-mix(in oklab, var(--info) 84%, black);
+    --info-800: color-mix(in oklab, var(--info) 34%, white);
+    --info-900: color-mix(in oklab, var(--info) 18%, white);
+    --info-950: color-mix(in oklab, var(--info) 10%, white);
+    color-scheme: light;
+}
+
 @theme {
     --font-sans: 'Plus Jakarta Sans', 'Outfit', 'Instrument Sans', ui-sans-serif, system-ui, sans-serif, 'Apple Color Emoji', 'Segoe UI Emoji',
         'Segoe UI Symbol', 'Noto Color Emoji';
+
+    --color-white: #fff;
+    --color-indigo-50: var(--brand-50);
+    --color-indigo-100: var(--brand-100);
+    --color-indigo-200: var(--brand-200);
+    --color-indigo-300: var(--brand-300);
+    --color-indigo-400: var(--brand-400);
+    --color-indigo-500: var(--brand-500);
+    --color-indigo-600: var(--brand-600);
+    --color-indigo-700: var(--brand-700);
+    --color-indigo-800: var(--brand-800);
+    --color-indigo-900: var(--brand-900);
+    --color-indigo-950: var(--brand-950);
+    --color-blue-50: var(--brand-50);
+    --color-blue-100: var(--brand-100);
+    --color-blue-200: var(--brand-200);
+    --color-blue-300: var(--brand-300);
+    --color-blue-400: var(--brand-400);
+    --color-blue-500: var(--brand-500);
+    --color-blue-600: var(--brand-600);
+    --color-blue-700: var(--brand-700);
+    --color-blue-800: var(--brand-800);
+    --color-blue-900: var(--brand-900);
+    --color-blue-950: var(--brand-950);
+    --color-purple-50: var(--accent-50);
+    --color-purple-100: var(--accent-100);
+    --color-purple-200: var(--accent-200);
+    --color-purple-300: var(--accent-300);
+    --color-purple-400: var(--accent-400);
+    --color-purple-500: var(--accent-500);
+    --color-purple-600: var(--accent-600);
+    --color-purple-700: var(--accent-700);
+    --color-purple-800: var(--accent-800);
+    --color-purple-900: var(--accent-900);
+    --color-purple-950: var(--accent-950);
+    --color-violet-50: var(--accent-50);
+    --color-violet-100: var(--accent-100);
+    --color-violet-200: var(--accent-200);
+    --color-violet-300: var(--accent-300);
+    --color-violet-400: var(--accent-400);
+    --color-violet-500: var(--accent-500);
+    --color-violet-600: var(--accent-600);
+    --color-violet-700: var(--accent-700);
+    --color-violet-800: var(--accent-800);
+    --color-violet-900: var(--accent-900);
+    --color-violet-950: var(--accent-950);
+    --color-fuchsia-50: var(--accent-50);
+    --color-fuchsia-100: var(--accent-100);
+    --color-fuchsia-200: var(--accent-200);
+    --color-fuchsia-300: var(--accent-300);
+    --color-fuchsia-400: var(--accent-400);
+    --color-fuchsia-500: var(--accent-500);
+    --color-fuchsia-600: var(--accent-600);
+    --color-fuchsia-700: var(--accent-700);
+    --color-fuchsia-800: var(--accent-800);
+    --color-fuchsia-900: var(--accent-900);
+    --color-fuchsia-950: var(--accent-950);
+    --color-emerald-50: var(--success-50);
+    --color-emerald-100: var(--success-100);
+    --color-emerald-200: var(--success-200);
+    --color-emerald-300: var(--success-300);
+    --color-emerald-400: var(--success-400);
+    --color-emerald-500: var(--success-500);
+    --color-emerald-600: var(--success-600);
+    --color-emerald-700: var(--success-700);
+    --color-emerald-800: var(--success-800);
+    --color-emerald-900: var(--success-900);
+    --color-emerald-950: var(--success-950);
+    --color-green-50: var(--success-50);
+    --color-green-100: var(--success-100);
+    --color-green-200: var(--success-200);
+    --color-green-300: var(--success-300);
+    --color-green-400: var(--success-400);
+    --color-green-500: var(--success-500);
+    --color-green-600: var(--success-600);
+    --color-green-700: var(--success-700);
+    --color-green-800: var(--success-800);
+    --color-green-900: var(--success-900);
+    --color-green-950: var(--success-950);
+    --color-teal-50: var(--success-50);
+    --color-teal-100: var(--success-100);
+    --color-teal-200: var(--success-200);
+    --color-teal-300: var(--success-300);
+    --color-teal-400: var(--success-400);
+    --color-teal-500: var(--success-500);
+    --color-teal-600: var(--success-600);
+    --color-teal-700: var(--success-700);
+    --color-teal-800: var(--success-800);
+    --color-teal-900: var(--success-900);
+    --color-teal-950: var(--success-950);
+    --color-amber-50: var(--warning-50);
+    --color-amber-100: var(--warning-100);
+    --color-amber-200: var(--warning-200);
+    --color-amber-300: var(--warning-300);
+    --color-amber-400: var(--warning-400);
+    --color-amber-500: var(--warning-500);
+    --color-amber-600: var(--warning-600);
+    --color-amber-700: var(--warning-700);
+    --color-amber-800: var(--warning-800);
+    --color-amber-900: var(--warning-900);
+    --color-amber-950: var(--warning-950);
+    --color-yellow-50: var(--warning-50);
+    --color-yellow-100: var(--warning-100);
+    --color-yellow-200: var(--warning-200);
+    --color-yellow-300: var(--warning-300);
+    --color-yellow-400: var(--warning-400);
+    --color-yellow-500: var(--warning-500);
+    --color-yellow-600: var(--warning-600);
+    --color-yellow-700: var(--warning-700);
+    --color-yellow-800: var(--warning-800);
+    --color-yellow-900: var(--warning-900);
+    --color-yellow-950: var(--warning-950);
+    --color-orange-50: var(--warning-50);
+    --color-orange-100: var(--warning-100);
+    --color-orange-200: var(--warning-200);
+    --color-orange-300: var(--warning-300);
+    --color-orange-400: var(--warning-400);
+    --color-orange-500: var(--warning-500);
+    --color-orange-600: var(--warning-600);
+    --color-orange-700: var(--warning-700);
+    --color-orange-800: var(--warning-800);
+    --color-orange-900: var(--warning-900);
+    --color-orange-950: var(--warning-950);
+    --color-rose-50: var(--danger-50);
+    --color-rose-100: var(--danger-100);
+    --color-rose-200: var(--danger-200);
+    --color-rose-300: var(--danger-300);
+    --color-rose-400: var(--danger-400);
+    --color-rose-500: var(--danger-500);
+    --color-rose-600: var(--danger-600);
+    --color-rose-700: var(--danger-700);
+    --color-rose-800: var(--danger-800);
+    --color-rose-900: var(--danger-900);
+    --color-rose-950: var(--danger-950);
+    --color-red-50: var(--danger-50);
+    --color-red-100: var(--danger-100);
+    --color-red-200: var(--danger-200);
+    --color-red-300: var(--danger-300);
+    --color-red-400: var(--danger-400);
+    --color-red-500: var(--danger-500);
+    --color-red-600: var(--danger-600);
+    --color-red-700: var(--danger-700);
+    --color-red-800: var(--danger-800);
+    --color-red-900: var(--danger-900);
+    --color-red-950: var(--danger-950);
+    --color-sky-50: var(--info-50);
+    --color-sky-100: var(--info-100);
+    --color-sky-200: var(--info-200);
+    --color-sky-300: var(--info-300);
+    --color-sky-400: var(--info-400);
+    --color-sky-500: var(--info-500);
+    --color-sky-600: var(--info-600);
+    --color-sky-700: var(--info-700);
+    --color-sky-800: var(--info-800);
+    --color-sky-900: var(--info-900);
+    --color-sky-950: var(--info-950);
+    --color-cyan-50: var(--info-50);
+    --color-cyan-100: var(--info-100);
+    --color-cyan-200: var(--info-200);
+    --color-cyan-300: var(--info-300);
+    --color-cyan-400: var(--info-400);
+    --color-cyan-500: var(--info-500);
+    --color-cyan-600: var(--info-600);
+    --color-cyan-700: var(--info-700);
+    --color-cyan-800: var(--info-800);
+    --color-cyan-900: var(--info-900);
+    --color-cyan-950: var(--info-950);
+    --color-slate-50: var(--neutral-50);
+    --color-slate-100: var(--neutral-100);
+    --color-slate-200: var(--neutral-200);
+    --color-slate-300: var(--neutral-300);
+    --color-slate-400: var(--neutral-400);
+    --color-slate-500: var(--neutral-500);
+    --color-slate-600: var(--neutral-600);
+    --color-slate-700: var(--neutral-700);
+    --color-slate-800: var(--neutral-800);
+    --color-slate-900: var(--neutral-900);
+    --color-slate-950: var(--neutral-950);
+    --color-gray-50: var(--neutral-50);
+    --color-gray-100: var(--neutral-100);
+    --color-gray-200: var(--neutral-200);
+    --color-gray-300: var(--neutral-300);
+    --color-gray-400: var(--neutral-400);
+    --color-gray-500: var(--neutral-500);
+    --color-gray-600: var(--neutral-600);
+    --color-gray-700: var(--neutral-700);
+    --color-gray-800: var(--neutral-800);
+    --color-gray-900: var(--neutral-900);
+    --color-gray-950: var(--neutral-950);
 }
 
 @layer base {
     :root {
-        --ui-primary: #4f46e5;
-        --ui-primary-hover: #4338ca;
-        --ui-secondary: #64748b;
-        --ui-bg: #070b14;
-        --ui-bg-soft: #0b1120;
-        --ui-surface: rgba(15, 23, 42, .82);
-        --ui-surface-strong: rgba(15, 23, 42, .94);
-        --ui-card: rgba(15, 23, 42, .72);
-        --ui-card-hover: rgba(30, 41, 59, .78);
-        --ui-border: rgba(71, 85, 105, .36);
-        --ui-border-strong: rgba(100, 116, 139, .48);
-        --ui-text: #e5edf7;
-        --ui-text-strong: #f8fafc;
-        --ui-text-muted: #94a3b8;
-        --ui-text-soft: #64748b;
-        --ui-success: #10b981;
-        --ui-warning: #f59e0b;
-        --ui-danger: #ef4444;
-        --ui-info: #0ea5e9;
-        --ui-focus: rgba(79, 70, 229, .36);
-        --ui-disabled: rgba(100, 116, 139, .38);
+        --ui-primary: var(--brand-600);
+        --ui-primary-hover: var(--brand-700);
+        --ui-secondary: var(--neutral-500);
+        --ui-bg: var(--page-bg);
+        --ui-bg-soft: var(--neutral-900);
+        --ui-surface: color-mix(in oklab, var(--neutral-900) 82%, transparent);
+        --ui-surface-strong: color-mix(in oklab, var(--neutral-900) 94%, transparent);
+        --ui-card: color-mix(in oklab, var(--neutral-900) 72%, transparent);
+        --ui-card-hover: color-mix(in oklab, var(--neutral-800) 78%, transparent);
+        --ui-border: color-mix(in oklab, var(--neutral-600) 36%, transparent);
+        --ui-border-strong: color-mix(in oklab, var(--neutral-500) 48%, transparent);
+        --ui-text: var(--neutral-200);
+        --ui-text-strong: var(--on-surface-strong);
+        --ui-text-muted: var(--neutral-400);
+        --ui-text-soft: var(--neutral-500);
+        --ui-success: var(--success);
+        --ui-warning: var(--warning);
+        --ui-danger: var(--danger);
+        --ui-info: var(--info);
+        --ui-focus: color-mix(in oklab, var(--brand) 36%, transparent);
+        --ui-disabled: color-mix(in oklab, var(--neutral-500) 38%, transparent);
         --ui-radius: .75rem;
         --ui-radius-sm: .5rem;
-        --ui-shadow: 0 14px 32px -28px rgba(15, 23, 42, .95);
-        --ui-shadow-card: 0 16px 40px -32px rgba(2, 6, 23, .95);
+        --ui-shadow: 0 14px 32px -28px var(--shadow-color);
+        --ui-shadow-card: 0 16px 40px -32px var(--shadow-color);
+        --ui-input-bg: color-mix(in oklab, var(--neutral-950) 72%, transparent);
+    }
+
+    html[data-theme="light"] {
+        --ui-surface: #ffffff;
+        --ui-surface-strong: #ffffff;
+        --ui-card: #ffffff;
+        --ui-border: #dbe3ef;
+        --ui-border-strong: #cbd5e1;
+        --ui-input-bg: #ffffff;
     }
 
     html {
@@ -44,8 +437,8 @@
     body {
         color: var(--ui-text);
         background:
-            radial-gradient(circle at 16% -8%, rgba(79, 70, 229, .16), transparent 28rem),
-            linear-gradient(180deg, #080d18 0%, #070b14 42%, #060914 100%) !important;
+            radial-gradient(circle at 16% -8%, var(--page-glow), transparent 28rem),
+            var(--page-gradient) !important;
         font-size: 14px;
         letter-spacing: 0;
     }
@@ -59,7 +452,7 @@
     }
 
     ::selection {
-        background: rgba(79, 70, 229, .72);
+        background: color-mix(in oklab, var(--brand) 72%, transparent);
         color: white;
     }
 
@@ -71,14 +464,14 @@
 
 @layer components {
     .app-sidebar {
-        background: rgba(8, 13, 26, .92) !important;
+        background: var(--chrome-bg) !important;
         border-color: var(--ui-border) !important;
-        box-shadow: 12px 0 32px -30px rgba(2, 6, 23, .95);
+        box-shadow: 12px 0 32px -30px var(--shadow-color);
     }
 
     .app-sidebar nav {
         scrollbar-width: thin;
-        scrollbar-color: rgba(100, 116, 139, .36) transparent;
+        scrollbar-color: color-mix(in oklab, var(--neutral-500) 36%, transparent) transparent;
     }
 
     .app-sidebar nav a {
@@ -89,21 +482,21 @@
     }
 
     .app-sidebar nav a:hover {
-        border-color: rgba(100, 116, 139, .22);
-        background: rgba(30, 41, 59, .52) !important;
+        border-color: color-mix(in oklab, var(--neutral-500) 22%, transparent);
+        background: color-mix(in oklab, var(--neutral-800) 52%, transparent) !important;
     }
 
     .app-sidebar nav a[class*="bg-indigo-600"] {
-        background: linear-gradient(135deg, rgba(79, 70, 229, .98), rgba(37, 99, 235, .92)) !important;
-        border-color: rgba(165, 180, 252, .28);
-        box-shadow: 0 10px 24px -20px rgba(79, 70, 229, .86) !important;
+        background: linear-gradient(135deg, var(--brand-600), color-mix(in oklab, var(--brand-600), var(--info-600) 35%)) !important;
+        border-color: color-mix(in oklab, var(--brand-300) 28%, transparent);
+        box-shadow: 0 10px 24px -20px color-mix(in oklab, var(--brand-600) 86%, transparent) !important;
     }
 
     main > header {
         height: 4.25rem !important;
         border-color: var(--ui-border) !important;
-        background: rgba(8, 13, 26, .78) !important;
-        box-shadow: 0 14px 32px -30px rgba(2, 6, 23, .95);
+        background: var(--chrome-header-bg) !important;
+        box-shadow: 0 14px 32px -30px var(--shadow-color);
     }
 
     main > div.flex-1 {
@@ -151,8 +544,8 @@
     }
 
     table thead th {
-        background: rgba(15, 23, 42, .96);
-        color: #cbd5e1;
+        background: var(--ui-surface-strong);
+        color: var(--neutral-300);
         font-size: 11px;
         font-weight: 800;
         letter-spacing: .02em;
@@ -162,8 +555,8 @@
     }
 
     table tbody td {
-        color: #dbe6f3;
-        border-bottom: 1px solid rgba(51, 65, 85, .42);
+        color: var(--ui-text);
+        border-bottom: 1px solid color-mix(in oklab, var(--neutral-700) 42%, transparent);
     }
 
     table tbody tr {
@@ -171,7 +564,7 @@
     }
 
     table tbody tr:hover {
-        background: rgba(30, 41, 59, .36);
+        background: color-mix(in oklab, var(--neutral-800) 36%, transparent);
     }
 
     table:not(.invoice-notebook-table):not(.customer-notebook-table):not(.odp-notebook-table):not(.notebook-table) th,
@@ -185,7 +578,7 @@
     select,
     textarea {
         border-color: var(--ui-border) !important;
-        background-color: rgba(2, 6, 23, .72) !important;
+        background-color: var(--ui-input-bg) !important;
         color: var(--ui-text) !important;
         border-radius: var(--ui-radius-sm) !important;
         font-size: .8125rem !important;
@@ -194,13 +587,13 @@
     input:not([type="checkbox"]):not([type="radio"]):not([type="file"]):focus,
     select:focus,
     textarea:focus {
-        border-color: rgba(99, 102, 241, .8) !important;
-        box-shadow: 0 0 0 3px rgba(79, 70, 229, .16) !important;
+        border-color: color-mix(in oklab, var(--brand-500) 80%, transparent) !important;
+        box-shadow: 0 0 0 3px color-mix(in oklab, var(--brand-600) 16%, transparent) !important;
     }
 
     input::placeholder,
     textarea::placeholder {
-        color: #64748b !important;
+        color: var(--neutral-500) !important;
     }
 
     label {
@@ -216,7 +609,7 @@
     a[class*="bg-indigo"],
     button[class*="from-indigo"],
     a[class*="from-indigo"] {
-        box-shadow: 0 12px 28px -22px rgba(79, 70, 229, .95);
+        box-shadow: 0 12px 28px -22px color-mix(in oklab, var(--brand-600) 95%, transparent);
     }
 
     button:disabled,
@@ -227,7 +620,7 @@
 
     [class*="rounded-full"][class*="text-"],
     [class*="rounded-lg"][class*="text-"][class*="bg-"] {
-        border: 1px solid rgba(148, 163, 184, .16);
+        border: 1px solid color-mix(in oklab, var(--neutral-400) 16%, transparent);
     }
 
     nav[role="navigation"] span,
@@ -286,79 +679,208 @@
     }
 }
 
-/* The admin panel keeps the existing utility classes, while this theme layer
-   gives them a coherent light surface without requiring every page to change. */
-html[data-theme="light"] body {
-    color: #1e293b !important;
-    background: linear-gradient(180deg, #f8fafc 0%, #eef2ff 100%) !important;
+
+/*
+ * Mode terang: teks "text-white" dipakai untuk judul di atas latar gelap DAN untuk
+ * teks tombol berwarna. Di mode terang judul menjadi gelap, sedangkan teks di atas
+ * tombol/badge berwarna solid tetap putih.
+ */
+html[data-theme="light"] .text-white,
+html[data-theme="light"] .hover\:text-white:hover,
+html[data-theme="light"] .group:hover .group-hover\:text-white {
+    color: var(--on-surface-strong);
 }
 
-html[data-theme="light"] .app-sidebar {
-    background: rgba(255, 255, 255, .94) !important;
-    border-color: #dbe3ef !important;
-    box-shadow: 12px 0 32px -28px rgba(15, 23, 42, .3);
+html[data-theme="light"] :is(
+    [class~="bg-indigo-500"],
+    [class~="from-indigo-500"],
+    [class~="bg-indigo-600"],
+    [class~="from-indigo-600"],
+    [class~="bg-indigo-700"],
+    [class~="from-indigo-700"],
+    [class~="bg-blue-500"],
+    [class~="from-blue-500"],
+    [class~="bg-blue-600"],
+    [class~="from-blue-600"],
+    [class~="bg-blue-700"],
+    [class~="from-blue-700"],
+    [class~="bg-purple-500"],
+    [class~="from-purple-500"],
+    [class~="bg-purple-600"],
+    [class~="from-purple-600"],
+    [class~="bg-purple-700"],
+    [class~="from-purple-700"],
+    [class~="bg-violet-500"],
+    [class~="from-violet-500"],
+    [class~="bg-violet-600"],
+    [class~="from-violet-600"],
+    [class~="bg-violet-700"],
+    [class~="from-violet-700"],
+    [class~="bg-fuchsia-500"],
+    [class~="from-fuchsia-500"],
+    [class~="bg-fuchsia-600"],
+    [class~="from-fuchsia-600"],
+    [class~="bg-fuchsia-700"],
+    [class~="from-fuchsia-700"],
+    [class~="bg-emerald-500"],
+    [class~="from-emerald-500"],
+    [class~="bg-emerald-600"],
+    [class~="from-emerald-600"],
+    [class~="bg-emerald-700"],
+    [class~="from-emerald-700"],
+    [class~="bg-green-500"],
+    [class~="from-green-500"],
+    [class~="bg-green-600"],
+    [class~="from-green-600"],
+    [class~="bg-green-700"],
+    [class~="from-green-700"],
+    [class~="bg-teal-500"],
+    [class~="from-teal-500"],
+    [class~="bg-teal-600"],
+    [class~="from-teal-600"],
+    [class~="bg-teal-700"],
+    [class~="from-teal-700"],
+    [class~="bg-rose-500"],
+    [class~="from-rose-500"],
+    [class~="bg-rose-600"],
+    [class~="from-rose-600"],
+    [class~="bg-rose-700"],
+    [class~="from-rose-700"],
+    [class~="bg-red-500"],
+    [class~="from-red-500"],
+    [class~="bg-red-600"],
+    [class~="from-red-600"],
+    [class~="bg-red-700"],
+    [class~="from-red-700"],
+    [class~="bg-amber-500"],
+    [class~="from-amber-500"],
+    [class~="bg-amber-600"],
+    [class~="from-amber-600"],
+    [class~="bg-amber-700"],
+    [class~="from-amber-700"],
+    [class~="bg-yellow-500"],
+    [class~="from-yellow-500"],
+    [class~="bg-yellow-600"],
+    [class~="from-yellow-600"],
+    [class~="bg-yellow-700"],
+    [class~="from-yellow-700"],
+    [class~="bg-orange-500"],
+    [class~="from-orange-500"],
+    [class~="bg-orange-600"],
+    [class~="from-orange-600"],
+    [class~="bg-orange-700"],
+    [class~="from-orange-700"],
+    [class~="bg-sky-500"],
+    [class~="from-sky-500"],
+    [class~="bg-sky-600"],
+    [class~="from-sky-600"],
+    [class~="bg-sky-700"],
+    [class~="from-sky-700"],
+    [class~="bg-cyan-500"],
+    [class~="from-cyan-500"],
+    [class~="bg-cyan-600"],
+    [class~="from-cyan-600"],
+    [class~="bg-cyan-700"],
+    [class~="from-cyan-700"],
+    [class~="bg-black"]
+):is(.text-white, .hover\:text-white:hover),
+html[data-theme="light"] :is(
+    [class~="bg-indigo-500"],
+    [class~="from-indigo-500"],
+    [class~="bg-indigo-600"],
+    [class~="from-indigo-600"],
+    [class~="bg-indigo-700"],
+    [class~="from-indigo-700"],
+    [class~="bg-blue-500"],
+    [class~="from-blue-500"],
+    [class~="bg-blue-600"],
+    [class~="from-blue-600"],
+    [class~="bg-blue-700"],
+    [class~="from-blue-700"],
+    [class~="bg-purple-500"],
+    [class~="from-purple-500"],
+    [class~="bg-purple-600"],
+    [class~="from-purple-600"],
+    [class~="bg-purple-700"],
+    [class~="from-purple-700"],
+    [class~="bg-violet-500"],
+    [class~="from-violet-500"],
+    [class~="bg-violet-600"],
+    [class~="from-violet-600"],
+    [class~="bg-violet-700"],
+    [class~="from-violet-700"],
+    [class~="bg-fuchsia-500"],
+    [class~="from-fuchsia-500"],
+    [class~="bg-fuchsia-600"],
+    [class~="from-fuchsia-600"],
+    [class~="bg-fuchsia-700"],
+    [class~="from-fuchsia-700"],
+    [class~="bg-emerald-500"],
+    [class~="from-emerald-500"],
+    [class~="bg-emerald-600"],
+    [class~="from-emerald-600"],
+    [class~="bg-emerald-700"],
+    [class~="from-emerald-700"],
+    [class~="bg-green-500"],
+    [class~="from-green-500"],
+    [class~="bg-green-600"],
+    [class~="from-green-600"],
+    [class~="bg-green-700"],
+    [class~="from-green-700"],
+    [class~="bg-teal-500"],
+    [class~="from-teal-500"],
+    [class~="bg-teal-600"],
+    [class~="from-teal-600"],
+    [class~="bg-teal-700"],
+    [class~="from-teal-700"],
+    [class~="bg-rose-500"],
+    [class~="from-rose-500"],
+    [class~="bg-rose-600"],
+    [class~="from-rose-600"],
+    [class~="bg-rose-700"],
+    [class~="from-rose-700"],
+    [class~="bg-red-500"],
+    [class~="from-red-500"],
+    [class~="bg-red-600"],
+    [class~="from-red-600"],
+    [class~="bg-red-700"],
+    [class~="from-red-700"],
+    [class~="bg-amber-500"],
+    [class~="from-amber-500"],
+    [class~="bg-amber-600"],
+    [class~="from-amber-600"],
+    [class~="bg-amber-700"],
+    [class~="from-amber-700"],
+    [class~="bg-yellow-500"],
+    [class~="from-yellow-500"],
+    [class~="bg-yellow-600"],
+    [class~="from-yellow-600"],
+    [class~="bg-yellow-700"],
+    [class~="from-yellow-700"],
+    [class~="bg-orange-500"],
+    [class~="from-orange-500"],
+    [class~="bg-orange-600"],
+    [class~="from-orange-600"],
+    [class~="bg-orange-700"],
+    [class~="from-orange-700"],
+    [class~="bg-sky-500"],
+    [class~="from-sky-500"],
+    [class~="bg-sky-600"],
+    [class~="from-sky-600"],
+    [class~="bg-sky-700"],
+    [class~="from-sky-700"],
+    [class~="bg-cyan-500"],
+    [class~="from-cyan-500"],
+    [class~="bg-cyan-600"],
+    [class~="from-cyan-600"],
+    [class~="bg-cyan-700"],
+    [class~="from-cyan-700"],
+    [class~="bg-black"]
+) :is(.text-white, .hover\:text-white:hover) {
+    color: #fff;
 }
 
-html[data-theme="light"] main > header {
-    background: rgba(255, 255, 255, .86) !important;
-    border-color: #dbe3ef !important;
-}
-
-html[data-theme="light"] .bg-slate-950,
-html[data-theme="light"] [class*="bg-slate-950/"] {
-    background-color: rgba(255, 255, 255, .82) !important;
-}
-
-html[data-theme="light"] .bg-slate-900,
-html[data-theme="light"] [class*="bg-slate-900/"] {
-    background-color: rgba(248, 250, 252, .9) !important;
-}
-
-html[data-theme="light"] [class*="border-slate-800"],
-html[data-theme="light"] [class*="border-slate-850"],
-html[data-theme="light"] [class*="border-slate-855"] {
-    border-color: #d5deeb !important;
-}
-
-html[data-theme="light"] .text-slate-100,
-html[data-theme="light"] .text-slate-200,
-html[data-theme="light"] .text-slate-300 {
-    color: #334155 !important;
-}
-
-html[data-theme="light"] .text-slate-400,
-html[data-theme="light"] .text-slate-500 {
-    color: #64748b !important;
-}
-
-html[data-theme="light"] input:not([type="checkbox"]):not([type="radio"]):not([type="file"]),
-html[data-theme="light"] select,
-html[data-theme="light"] textarea {
-    background-color: #ffffff !important;
-    color: #1e293b !important;
-}
-
-html[data-theme="light"] table thead th {
-    background: #e2e8f0 !important;
-    color: #334155 !important;
-}
-
-html[data-theme="light"] table tbody td {
-    color: #334155 !important;
-    border-color: #dbe3ef !important;
-}
-
-html[data-theme="light"] table tbody tr:hover {
-    background: #eef2ff !important;
-}
-
-html[data-theme="light"] .android-bottom-nav {
-    background: rgba(255, 255, 255, .94) !important;
-    border-color: #d5deeb !important;
-    box-shadow: 0 18px 45px rgba(15, 23, 42, .18);
-}
-
-html[data-theme="light"] .android-bottom-nav a,
-html[data-theme="light"] .android-bottom-nav button {
-    color: #64748b;
+html[data-theme="light"] select option {
+    background: #fff;
+    color: #0f172a;
 }
