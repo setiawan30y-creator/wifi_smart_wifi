@@ -200,6 +200,18 @@ class InvoiceReminderTest extends TestCase
         $this->assertSame(['H+1'], $this->sentStages());
     }
 
+    public function test_inactive_or_isolated_customer_gets_no_reminder(): void
+    {
+        foreach (['inactive', 'isolated'] as $status) {
+            $this->customer->forceFill(['status' => $status])->save();
+
+            $this->runAt('2026-10-09 09:00');
+            $this->runAt('2026-10-11 09:00');
+        }
+
+        Http::assertNothingSent();
+    }
+
     public function test_free_customer_gets_no_reminder(): void
     {
         $this->customer->forceFill(['billing_type' => 'social'])->save();

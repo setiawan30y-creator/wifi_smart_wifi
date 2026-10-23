@@ -15,7 +15,8 @@ use Illuminate\Support\Collection;
  * Mengirim pengingat WA tagihan belum lunas sesuai ReminderSchedule.
  *
  * Aturan:
- *  - Hanya tagihan "unpaid" dari pelanggan yang ditagih (aktif, berbayar, pascabayar).
+ *  - Hanya tagihan "unpaid" dari pelanggan berstatus AKTIF dan berbayar.
+ *    Pelanggan nonaktif / isolir tidak menerima pengingat.
  *  - Setiap tahap (mis. H-3, H+7) hanya terkirim sekali per tagihan (tabel invoice_reminders).
  *    Tahap yang gagal dicoba lagi keesokan harinya.
  *  - Maksimal satu pengingat per pelanggan per hari.
@@ -106,7 +107,7 @@ class InvoiceReminderSender
             $customer = $customerInvoices->first()->customer;
             $phone = Phone::normalize($customer?->phone);
 
-            if (!$customer || !$phone || !$customer->isBillable()) {
+            if (!$customer || !$phone || !$customer->isBillable() || !self::isActive($customer)) {
                 continue;
             }
 
@@ -248,6 +249,11 @@ class InvoiceReminderSender
                 ])->save();
             }
         }
+    }
+
+    public static function isActive(Customer $customer): bool
+    {
+        return strtolower(trim((string) $customer->status)) === 'active';
     }
 
     private function template(?int $id): ?string

@@ -229,7 +229,7 @@ class BillingAutomation
         foreach ($invoices as $invoice) {
             $customer = $invoice->customer;
 
-            if (!$customer || !$customer->phone || !$customer->isBillable()) {
+            if (!$customer || !$customer->phone || !$customer->isBillable() || !InvoiceReminderSender::isActive($customer)) {
                 continue;
             }
 

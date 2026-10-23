@@ -112,7 +112,7 @@
     <div class="flex flex-col gap-3 lg:flex-row lg:items-end lg:justify-between">
         <div>
             <h1 class="text-xl font-extrabold tracking-tight text-white md:text-2xl">Otomatis Tagihan</h1>
-            <p class="mt-1 text-xs text-slate-400">Atur kapan tagihan terbit dan kapan pelanggan diingatkan lewat WhatsApp — sebelum dan sesudah jatuh tempo.</p>
+            <p class="mt-1 text-xs text-slate-400">Atur kapan tagihan terbit dan kapan pelanggan diingatkan lewat WhatsApp — sebelum dan sesudah jatuh tempo. Hanya untuk pelanggan berstatus <b class="text-slate-200">Aktif</b> (nonaktif, isolir, dan gratis dilewati).</p>
         </div>
         <div class="flex flex-wrap items-center gap-2">
             <span class="ba-pill" data-on="{{ $generateOn ? 1 : 0 }}"><i></i>Tagihan terbit</span>
