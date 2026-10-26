@@ -150,7 +150,10 @@ class BillingAutomation
             $counts['created']++;
 
             $phone = Phone::normalize($customer->phone);
-            if (!$sendWa || !$phone) {
+
+            // Tagihan yang baru dibuat setelah jatuh temponya lewat (mis. otomatis baru diaktifkan
+            // pertengahan bulan) tidak dikirimi WA "tagihan terbit"; penagihannya lewat pengingat H+.
+            if (!$sendWa || !$phone || $today->gt($dueDate)) {
                 continue;
             }
 

@@ -54,10 +54,15 @@ class ReminderScheduleTest extends TestCase
         $this->assertSame(1, $schedule->beforeStage(1));
         $this->assertSame(0, $schedule->beforeStage(0));
 
+        $this->assertNull($schedule->beforeStage(10));
+
         $this->assertNull($schedule->afterStage(0));
-        $this->assertSame(1, $schedule->afterStage(2));
-        $this->assertSame(3, $schedule->afterStage(6));
-        $this->assertSame(7, $schedule->afterStage(40));
+        $this->assertSame(1, $schedule->afterStage(1));
+        $this->assertSame(1, $schedule->afterStage(2), 'Terlambat 1 hari masih dikirim');
+        $this->assertSame(3, $schedule->afterStage(5), 'Terlambat 2 hari masih dikirim');
+        $this->assertNull($schedule->afterStage(6), 'Terlambat lebih dari 2 hari dilewati');
+        $this->assertSame(7, $schedule->afterStage(7));
+        $this->assertNull($schedule->afterStage(40), 'Tunggakan lama tidak dikirimi pesan mendadak');
     }
 
     public function test_empty_day_list_disables_section(): void

@@ -129,6 +129,38 @@ class InvoiceReminderTest extends TestCase
         Http::assertSentCount(1);
     }
 
+    public function test_each_customer_is_reminded_on_their_own_due_date(): void
+    {
+        // Pelanggan kedua jatuh tempo tanggal 20; tunggakan lama (September) milik pelanggan ketiga.
+        $other = $this->inTenant(function () {
+            $c = Customer::create(['name' => 'Pelanggan Dua', 'phone' => '081299990000', 'address' => '-', 'package_id' => $this->customer->package_id,
+                'billing_day' => 20, 'status' => 'active', 'status_rumah' => 'milik_sendiri', 'tanggal_pasang' => '2026-01-01']);
+            Invoice::create(['customer_id' => $c->id, 'month' => 10, 'year' => 2026, 'amount' => 150000, 'status' => 'unpaid']);
+
+            $old = Customer::create(['name' => 'Pelanggan Lama', 'phone' => '081277770000', 'address' => '-', 'package_id' => $this->customer->package_id,
+                'billing_day' => 5, 'status' => 'active', 'status_rumah' => 'milik_sendiri', 'tanggal_pasang' => '2026-01-01']);
+            Invoice::create(['customer_id' => $old->id, 'month' => 9, 'year' => 2026, 'amount' => 150000, 'status' => 'unpaid']);
+
+            return $c;
+        });
+
+        $sentTo = [];
+        foreach (range(1, 31) as $day) {
+            $before = Http::recorded()->count();
+            $this->runAt(sprintf('2026-10-%02d 09:00', $day));
+            foreach (Http::recorded()->slice($before) as [$request]) {
+                preg_match('/name="target".*?\r\n\r\n(\d+)/s', $request->body(), $m);
+                $sentTo[$day][] = $m[1] ?? '?';
+            }
+        }
+
+        $days = fn (string $phone) => array_keys(array_filter($sentTo, fn ($phones) => in_array($phone, $phones, true)));
+
+        $this->assertSame([7, 9, 10, 11, 13, 17], $days('6281234567890'), 'Jatuh tempo tgl 10: H-3, H-1, H, H+1, H+3, H+7');
+        $this->assertSame([17, 19, 20, 21, 23, 27], $days('6281299990000'), 'Jatuh tempo tgl 20');
+        $this->assertSame([], $days('6281277770000'), 'Tunggakan bulan lalu tidak ikut terkirim bersamaan');
+    }
+
     public function test_paid_invoice_stops_reminders(): void
     {
         $this->runAt('2026-10-07 09:00');

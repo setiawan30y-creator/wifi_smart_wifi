@@ -422,7 +422,7 @@
                                 </div>
                                 @error('billing_reminder_before_days')<div class="ba-error">{{ $message }}</div>@enderror
                                 @error('billing_reminder_before_days.*')<div class="ba-error">{{ $message }}</div>@enderror
-                                <p class="ba-hint">Hari H = tepat pada tanggal jatuh tempo.</p>
+                                <p class="ba-hint">Dihitung dari tanggal jatuh tempo masing-masing pelanggan. Hari H = tepat pada tanggal jatuh tempo.</p>
                             </div>
                             <div>
                                 <label class="ba-label" for="before_template">Template WA</label>
@@ -467,7 +467,7 @@
                                 </div>
                                 @error('billing_reminder_after_days')<div class="ba-error">{{ $message }}</div>@enderror
                                 @error('billing_reminder_after_days.*')<div class="ba-error">{{ $message }}</div>@enderror
-                                <p class="ba-hint">Maksimal 10 hari. Ditahan selama pelanggan punya janji bayar yang belum lewat.</p>
+                                <p class="ba-hint">Dihitung dari tanggal jatuh tempo masing-masing pelanggan, maksimal 10 hari. Tunggakan yang sudah lewat semua jadwal tidak dikirimi pesan mendadak. Ditahan selama ada janji bayar yang belum lewat.</p>
                             </div>
                             <div>
                                 <label class="ba-label" for="after_template">Template WA</label>

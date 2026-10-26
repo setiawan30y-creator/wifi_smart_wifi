@@ -9,8 +9,8 @@ namespace App\Services\Billing;
  *  - Sesudah jatuh tempo: daftar H+ (mis. [1, 3, 7]) untuk tagihan yang belum dibayar.
  *  - Jam kirim: pengingat tidak dikirim sebelum jam ini.
  *
- * Aturan "ketinggalan" (mis. server mati beberapa hari): yang dikirim hanya tahap terbaru
- * yang sudah tercapai, bukan semua tahap yang terlewat sekaligus.
+ * Setiap tahap dikirim pada tanggalnya sendiri per pelanggan (tanggal jatuh tempo pelanggan
+ * itu ± hari tahap). Tahap yang terlewat lebih dari GRACE_DAYS hari tidak dikirim.
  */
 final class ReminderSchedule
 {
@@ -20,6 +20,9 @@ final class ReminderSchedule
     public const DEFAULT_BEFORE_DAYS = [3, 1, 0];
     public const DEFAULT_AFTER_DAYS = [1, 3, 7];
     public const DEFAULT_TIME = '08:00';
+
+    /** Toleransi keterlambatan kirim (hari) bila scheduler sempat mati. */
+    public const GRACE_DAYS = 2;
 
     private const MAX_BEFORE = 31;
     private const MAX_AFTER = 120;
@@ -96,8 +99,12 @@ final class ReminderSchedule
     }
 
     /**
-     * Tahap H- yang berlaku hari ini, atau null.
-     * $daysUntilDue: 3 = jatuh tempo 3 hari lagi, 0 = hari ini.
+     * Tahap H- yang jatuh hari ini, atau null. $daysUntilDue: 3 = jatuh tempo 3 hari lagi, 0 = hari ini.
+     *
+     * Pengingat hanya dikirim TEPAT pada harinya (mis. H-3 = 3 hari sebelum tanggal jatuh tempo
+     * pelanggan itu). Bila server sempat mati, tahap yang terlewat masih dikirim paling lambat
+     * GRACE_DAYS hari kemudian; lebih dari itu dilewati, supaya mengaktifkan pengingat tidak
+     * membuat semua pelanggan menerima pesan bersamaan.
      */
     public function beforeStage(int $daysUntilDue): ?int
     {
@@ -105,13 +112,14 @@ final class ReminderSchedule
             return null;
         }
 
-        $reached = array_filter($this->beforeDays, fn (int $day) => $day >= $daysUntilDue);
+        // hari sejak tanggal tahap = tahap - sisa hari
+        $due = array_filter($this->beforeDays, fn (int $day) => $day - $daysUntilDue >= 0 && $day - $daysUntilDue <= self::GRACE_DAYS);
 
-        return $reached === [] ? null : min($reached);
+        return $due === [] ? null : min($due);
     }
 
     /**
-     * Tahap H+ yang berlaku hari ini, atau null. $daysOverdue: 1 = lewat 1 hari.
+     * Tahap H+ yang jatuh hari ini, atau null. $daysOverdue: 1 = lewat 1 hari. Aturan sama dengan beforeStage().
      */
     public function afterStage(int $daysOverdue): ?int
     {
@@ -119,9 +127,9 @@ final class ReminderSchedule
             return null;
         }
 
-        $reached = array_filter($this->afterDays, fn (int $day) => $day <= $daysOverdue);
+        $due = array_filter($this->afterDays, fn (int $day) => $daysOverdue - $day >= 0 && $daysOverdue - $day <= self::GRACE_DAYS);
 
-        return $reached === [] ? null : max($reached);
+        return $due === [] ? null : max($due);
     }
 
     public static function label(string $type, int $days): string
