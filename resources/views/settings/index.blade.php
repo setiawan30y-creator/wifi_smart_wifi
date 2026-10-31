@@ -928,6 +928,9 @@
                     <div class="text-xs font-bold text-emerald-300">Variabel Khusus Pembayaran</div>
                     <p class="mt-1 text-[11px] text-emerald-100/80">Dipakai untuk template yang dipilih pada form Konfirmasi Pembayaran.</p>
                     <div class="mt-2 grid gap-1.5 font-mono text-[11px] text-emerald-100">
+                        <span>{periode_ringkas} <em class="not-italic font-sans text-emerald-300/80">· Januari – Oktober 2026 (10 bulan)</em></span>
+                        <span>{nomor_tagihan_ringkas} <em class="not-italic font-sans text-emerald-300/80">· INV-… s/d INV-… (10 tagihan)</em></span>
+                        <span>{sisa_tagihan_ringkas} <em class="not-italic font-sans text-emerald-300/80">· lunas / sisa tunggakan</em></span>
                         <span>{rincian_tagihan}</span>
                         <span>{sisa_tagihan}</span>
                         <span>{rincian_sisa_tagihan}</span>
