@@ -210,7 +210,7 @@
                                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Token / API Key</label>
                                         <input type="text" name="wa_gateway_token" value="{{ $waGatewayToken }}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="Token API gateway">
                                         <input type="hidden" name="fonnte_token" value="{{ $waGatewayToken }}">
-                                        <p class="text-[10px] text-slate-500 mt-1" data-wa-almara-only>ALMARA: buka menu <b>Perangkat</b> → kolom <b>Token API</b> → Salin, lalu tempel di sini (diawali <span class="font-mono">alm_</span>).</p>
+                                        <p class="text-[10px] text-slate-500 mt-1" data-wa-almara-only>ALMARA: buka menu <b>Perangkat</b> → kolom <b>Aksi</b> → <b>🔑 Salin token</b>, lalu tempel di sini (diawali <span class="font-mono">alm_</span>).</p>
                                     </div>
                                     <div>
                                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider"><span data-wa-almara-only>URL ALMARA Gateway WA</span><span data-wa-other-only>Endpoint Kirim Pesan</span></label>
