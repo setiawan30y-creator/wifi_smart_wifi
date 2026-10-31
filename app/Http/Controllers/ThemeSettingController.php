@@ -49,6 +49,20 @@ class ThemeSettingController extends Controller
         ]);
     }
 
+    /**
+     * API key CARTO untuk peta dasar Gelap/Terang di Peta Jaringan (opsional).
+     */
+    public function updateMap(Request $request)
+    {
+        $data = $request->validate([
+            'map_carto_api_key' => ['nullable', 'string', 'max:200', 'regex:/^[A-Za-z0-9._-]*$/'],
+        ], ['regex' => 'API key hanya boleh berisi huruf, angka, titik, garis bawah, dan tanda minus.']);
+
+        Setting::set('map_carto_api_key', trim((string) ($data['map_carto_api_key'] ?? '')));
+
+        return redirect()->route('settings.index', ['tab' => 'appearance'])->with('success', 'Pengaturan peta disimpan.');
+    }
+
     public function reset()
     {
         Setting::query()->whereIn('key', Theme::keys())->delete();

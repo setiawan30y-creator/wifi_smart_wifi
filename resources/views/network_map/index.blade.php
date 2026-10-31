@@ -14,6 +14,10 @@
     }
     
     /* Tema Gelap Leaflet Pop-up & Controls */
+    /* Peta OpenStreetMap diwarnai gelap/terang (dipakai bila tidak ada API key CARTO) */
+    .map-tiles-dark { filter: invert(1) hue-rotate(180deg) brightness(.92) contrast(.88) saturate(.55); }
+    .map-tiles-light { filter: grayscale(.45) brightness(1.04) contrast(.95); }
+
     .leaflet-popup-content-wrapper, .leaflet-popup-tip {
         background-color: rgba(15, 23, 42, 0.95) !important;
         color: #f8fafc !important;
@@ -729,16 +733,24 @@
             }
             
             let url = '';
-            let options = { maxZoom: 22, maxNativeZoom: 20 };
-            
-            if (theme === 'dark') {
-                url = 'https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png';
-                options.subdomains = 'abcd';
-                options.attribution = '&copy; OpenStreetMap &copy; CARTO';
-            } else if (theme === 'light') {
-                url = 'https://{s}.basemaps.cartocdn.com/light_all/{z}/{x}/{y}{r}.png';
-                options.subdomains = 'abcd';
-                options.attribution = '&copy; OpenStreetMap &copy; CARTO';
+            let options = { maxZoom: 22, maxNativeZoom: 19 };
+            const cartoKey = @json($mapCartoKey);
+            const osm = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png';
+            const osmAttribution = '&copy; <a href="https://www.openstreetmap.org/copyright" target="_blank" rel="noopener">OpenStreetMap</a>';
+
+            if (theme === 'dark' || theme === 'light') {
+                if (cartoKey) {
+                    // CARTO sejak Agustus 2026 wajib API key; tanpa key muncul watermark "API KEY REQUIRED".
+                    url = 'https://{s}.basemaps.cartocdn.com/' + (theme === 'dark' ? 'dark_all' : 'light_all') + '/{z}/{x}/{y}{r}.png?key=' + encodeURIComponent(cartoKey);
+                    options.subdomains = 'abcd';
+                    options.maxNativeZoom = 20;
+                    options.attribution = osmAttribution + ' &copy; <a href="https://carto.com/attributions" target="_blank" rel="noopener">CARTO</a>';
+                } else {
+                    // Tanpa API key: peta OpenStreetMap, diwarnai lewat CSS agar tampil gelap/terang.
+                    url = osm;
+                    options.className = theme === 'dark' ? 'map-tiles-dark' : 'map-tiles-light';
+                    options.attribution = osmAttribution;
+                }
             } else if (theme === 'satellite') {
                 url = 'https://mt0.google.com/vt/lyrs=y&x={x}&y={y}&z={z}'; // Google Hybrid (Satelit + Label)
                 options.attribution = '&copy; Google';
@@ -748,7 +760,7 @@
                 options.attribution = '&copy; Google';
                 options.maxNativeZoom = 21;
             }
-            
+
             currentTileLayer = L.tileLayer(url, options).addTo(map);
             currentTileLayer.setZIndex(0);
         };

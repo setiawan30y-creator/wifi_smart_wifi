@@ -64,6 +64,12 @@ class NetworkMapController extends Controller
             'description' => \App\Models\Setting::get('network_server_description', config('network.server.description')),
         ];
 
-        return view('network_map.index', compact('odps', 'customers', 'isps', 'server', 'packages'));
+        // API key CARTO (opsional): milik perusahaan, lalu milik platform, lalu .env CARTO_API_KEY.
+        // Tanpa key, peta Gelap/Terang memakai OpenStreetMap (tanpa watermark).
+        $mapCartoKey = trim((string) (\App\Models\Setting::get('map_carto_api_key')
+            ?: (\App\Models\Setting::platform()['map_carto_api_key'] ?? null)
+            ?: config('services.carto.key'))) ?: null;
+
+        return view('network_map.index', compact('odps', 'customers', 'isps', 'server', 'packages', 'mapCartoKey'));
     }
 }

@@ -2,6 +2,11 @@
 
 return [
 
+    // Peta dasar CARTO (Gelap/Terang) di Peta Jaringan. Opsional; daftar gratis di carto.com.
+    'carto' => [
+        'key' => env('CARTO_API_KEY'),
+    ],
+
     /*
     |--------------------------------------------------------------------------
     | Third Party Services

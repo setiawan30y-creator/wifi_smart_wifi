@@ -230,10 +230,32 @@
         </div>
     </form>
 
+    {{-- Peta Jaringan: peta dasar --}}
+    <form action="{{ route('settings.map') }}" method="POST" class="ap-card space-y-4 p-5 md:p-6 2xl:col-start-1">
+        @csrf
+        <div>
+            <h3 class="ap-section-title">5. Peta Jaringan</h3>
+            <p class="mt-1 text-sm text-slate-400">Peta dasar mode <b>Gelap</b> dan <b>Terang</b>. Tanpa API key, peta memakai OpenStreetMap yang diwarnai otomatis (tanpa watermark). Dengan API key CARTO, peta tampil lebih bersih.</p>
+        </div>
+        @php($mapKey = old('map_carto_api_key', \App\Models\Setting::get('map_carto_api_key')))
+        <div>
+            <label class="ap-label mb-2 block" for="map_carto_api_key">API key CARTO (opsional)</label>
+            <div class="flex gap-2">
+                <input type="password" id="map_carto_api_key" name="map_carto_api_key" value="{{ $mapKey }}" autocomplete="off" placeholder="Kosongkan untuk memakai OpenStreetMap" class="w-full rounded-xl border border-slate-800 bg-slate-950 px-3 py-2.5 font-mono text-sm text-slate-200 @error('map_carto_api_key') border-rose-500 @enderror">
+                <button type="button" class="shrink-0 rounded-xl border border-slate-700 bg-slate-800 px-3 text-xs font-semibold text-slate-200 hover:bg-slate-700" onclick="const i=document.getElementById('map_carto_api_key'); i.type = i.type === 'password' ? 'text' : 'password'">Lihat</button>
+            </div>
+            @error('map_carto_api_key')<div class="mt-1 text-xs text-rose-400">{{ $message }}</div>@enderror
+            <p class="mt-2 text-xs text-slate-500">API key gratis bisa didapat dengan mendaftar di <a class="font-semibold text-indigo-400 underline" href="https://carto.com/basemaps" target="_blank" rel="noopener">carto.com/basemaps</a>. Key ini ikut terlihat di browser saat peta dimuat, jadi gunakan key khusus untuk peta.</p>
+        </div>
+        <div class="flex justify-end">
+            <button type="submit" class="rounded-xl bg-indigo-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-indigo-500">Simpan pengaturan peta</button>
+        </div>
+    </form>
+
     <form id="theme-reset-form" action="{{ route('settings.theme.reset') }}" method="POST" class="hidden" onsubmit="return confirm('Kembalikan semua warna, huruf, dan bentuk ke bawaan?')">@csrf</form>
 
     {{-- Pratinjau mini --}}
-    <aside class="space-y-3 2xl:sticky 2xl:top-24 2xl:self-start">
+    <aside class="space-y-3 2xl:sticky 2xl:top-24 2xl:col-start-2 2xl:row-span-2 2xl:row-start-1 2xl:self-start">
         <div class="flex items-center justify-between px-1">
             <h4 class="text-sm font-bold text-white">Pratinjau</h4>
             <span class="text-xs text-slate-500" id="theme-preview-mode"></span>
