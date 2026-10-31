@@ -27,6 +27,10 @@ class AppServiceProvider extends ServiceProvider
      */
     public function boot(): void
     {
+        // Tanggal untuk pelanggan (pesan WA, laporan) selalu berbahasa Indonesia,
+        // apa pun APP_LOCALE di .env: "28 Oktober 2026", bukan "28 October 2026".
+        \Illuminate\Support\Carbon::setLocale('id');
+
         // Tenant aktif mengikuti user yang login.
         $setTenantFromUser = function ($event) {
             if ($event->user && $event->user->tenant_id) {

@@ -176,6 +176,20 @@ class InvoiceService
             : 'Tidak ada sisa tagihan.';
         $recipientName = $hasMultipleCustomers ? implode(', ', $customerNames) : $customer->name;
 
+        // Versi ringkas agar pesan tetap rapi saat membayar banyak bulan sekaligus.
+        $monthCount = collect($invoices)->map(fn ($inv) => $inv->year . '-' . $inv->month)->unique()->count();
+        $periodShort = \App\Services\Billing\BillingMessages::periodRange($invoices)
+            . ($monthCount > 1 ? " ({$monthCount} bulan)" : '');
+        $invoiceShort = count($invoiceNumbers) <= 3
+            ? implode(', ', $invoiceNumbers)
+            : reset($invoiceNumbers) . ' s/d ' . end($invoiceNumbers) . ' (' . count($invoiceNumbers) . ' tagihan)';
+        $remainingCount = $remainingUnpaidInvoices ? $remainingUnpaidInvoices->count() : 0;
+        $remainingShort = $remainingCount === 0
+            ? '✅ Semua tagihan sudah lunas.'
+            : "⚠️ Masih ada {$remainingCount} tagihan belum dibayar\n"
+                . 'Periode: ' . \App\Services\Billing\BillingMessages::periodRange($remainingUnpaidInvoices) . "\n"
+                . 'Total: ' . $remainingTotalText;
+
         if (filled($templateContent)) {
             return strtr((string) $templateContent, [
                 '{nama}' => $recipientName,
@@ -203,6 +217,9 @@ class InvoiceService
                 '{total_sisa_tagihan}' => $remainingTotalText,
                 '{status_sisa_tagihan}' => $remainingStatusText,
                 '{info_sisa_tagihan}' => $remainingSummaryText,
+                '{periode_ringkas}' => $periodShort,
+                '{nomor_tagihan_ringkas}' => $invoiceShort,
+                '{sisa_tagihan_ringkas}' => $remainingShort,
                 '{odp}' => $customer->odp->name ?? '-',
                 '{nama_odp}' => $customer->odp->name ?? '-',
             ]);

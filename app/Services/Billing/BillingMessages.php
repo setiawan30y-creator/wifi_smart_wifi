@@ -178,6 +178,46 @@ final class BillingMessages
         ]);
     }
 
+    /**
+     * Ringkas daftar periode tagihan menjadi rentang bulan berurutan.
+     * Contoh: Jan–Okt 2026 berurutan => "Januari – Oktober 2026";
+     * Nov 2025–Feb 2026 => "November 2025 – Februari 2026"; bulan yang loncat dipisah koma.
+     *
+     * @param  iterable  $invoices  objek dengan properti month & year
+     */
+    public static function periodRange(iterable $invoices): string
+    {
+        $keys = collect($invoices)
+            ->map(fn ($invoice) => ((int) $invoice->year) * 12 + ((int) $invoice->month - 1))
+            ->unique()->sort()->values();
+
+        if ($keys->isEmpty()) {
+            return '-';
+        }
+
+        $label = fn (int $key, bool $withYear = true) => self::monthName($key % 12 + 1) . ($withYear ? ' ' . intdiv($key, 12) : '');
+        $ranges = [];
+        $start = $prev = $keys->first();
+
+        foreach ($keys->slice(1)->push(null) as $key) {
+            if ($key !== null && $key === $prev + 1) {
+                $prev = $key;
+                continue;
+            }
+
+            if ($start === $prev) {
+                $ranges[] = $label($start);
+            } else {
+                $sameYear = intdiv($start, 12) === intdiv($prev, 12);
+                $ranges[] = $label($start, !$sameYear) . ' – ' . $label($prev);
+            }
+
+            $start = $prev = $key;
+        }
+
+        return implode(', ', $ranges);
+    }
+
     public static function monthName(int $month): string
     {
         return [
