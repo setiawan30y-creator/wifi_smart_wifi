@@ -218,7 +218,7 @@ class SettingsController extends Controller
             'company_logo' => 'nullable|image|max:2048',
             'company_favicon' => 'nullable|image|mimes:ico,png,jpg,jpeg,webp|max:1024',
             'fonnte_token' => 'nullable|string|max:255',
-            'wa_gateway_provider' => 'nullable|in:fonnte,custom',
+            'wa_gateway_provider' => 'nullable|in:almara,fonnte,custom',
             'wa_gateway_token' => 'nullable|string|max:1000',
             'wa_gateway_endpoint' => 'nullable|url|max:1000',
             'wa_gateway_auth_header' => 'nullable|string|max:100',

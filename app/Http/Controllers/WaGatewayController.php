@@ -173,7 +173,7 @@ class WaGatewayController extends Controller
         $message .= "Mohon scan *Barcode QRIS* pada gambar di atas untuk melakukan pembayaran. Pembayaran Anda akan diverifikasi secara otomatis oleh sistem.\n\nTerima kasih!";
 
         try {
-            $response = $gateway->isFonnte()
+            $response = $gateway->usesFonnteFormat()
                 ? $gateway->postToFonnte([
                     'target' => $phone,
                     'message' => $message,

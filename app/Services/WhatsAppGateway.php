@@ -9,8 +9,11 @@ use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
 
 /**
- * Satu-satunya tempat untuk membaca konfigurasi WA Gateway (Fonnte / custom)
+ * Satu-satunya tempat untuk membaca konfigurasi WA Gateway (ALMARA Gateway WA / Fonnte / custom)
  * dan mengirim pesan WhatsApp.
+ *
+ * Provider "almara": cukup isi URL aplikasi ALMARA Gateway WA + token perangkat
+ * (menu Perangkat → Token API). Header, field & format otomatis (gaya Fonnte: /api/send).
  *
  * Sebelumnya logika ini ada di dalam WaGatewayController dan dipanggil dari
  * InvoiceService / InvoiceController lewat app(WaGatewayController::class).
@@ -22,6 +25,39 @@ class WhatsAppGateway
 
     private ?array $config = null;
 
+    private ?int $tenantId = null;
+
+    /**
+     * Gateway untuk tenant tertentu — dipakai di konteks tanpa login
+     * (scheduler, webhook MikroTik, lupa password).
+     */
+    public static function forTenant(?int $tenantId): static
+    {
+        $gateway = new static();
+        $gateway->tenantId = $tenantId ?: null;
+
+        return $gateway;
+    }
+
+    /** Endpoint kirim ALMARA dari URL apa pun yang diisi (domain saja, /api, atau /api/send). */
+    public static function almaraEndpoint(string $url): string
+    {
+        $url = rtrim(trim($url), '/');
+
+        if ($url === '' || str_contains($url, 'fonnte.com')) {
+            return '';
+        }
+
+        foreach (['/api/v1/messages/send', '/api/send-message', '/api/send', '/api'] as $suffix) {
+            if (str_ends_with(strtolower($url), $suffix)) {
+                $url = substr($url, 0, -strlen($suffix));
+                break;
+            }
+        }
+
+        return $url . '/api/send';
+    }
+
     /**
      * Kirim satu pesan teks. Mengembalikan array:
      * ['success' => bool, 'message' => string, 'status' => int, 'data' => ?array, ...]
@@ -29,6 +65,14 @@ class WhatsAppGateway
     public function send(string $phone, string $message): array
     {
         $gateway = $this->config();
+
+        if ($gateway['provider'] === 'almara' && $gateway['endpoint'] === '') {
+            return [
+                'success' => false,
+                'message' => 'URL ALMARA Gateway WA belum diisi di Pengaturan Perusahaan.',
+                'status' => 400,
+            ];
+        }
 
         if (empty($gateway['token'])) {
             Log::warning('WA gateway token is empty for WA send.', [
@@ -55,7 +99,7 @@ class WhatsAppGateway
         }
 
         try {
-            $response = $gateway['provider'] === 'fonnte'
+            $response = $this->usesFonnteFormat()
                 ? $this->postToFonnte([
                     'target' => $phone,
                     'message' => $message,
@@ -83,7 +127,7 @@ class WhatsAppGateway
 
             return [
                 'success' => false,
-                'message' => $result['reason'] ?? $result['message'] ?? 'Gagal mengirim pesan',
+                'message' => $result['reason'] ?? $result['message'] ?? data_get($result, 'error.message') ?? 'Gagal mengirim pesan',
                 'data' => $result,
                 'status' => 400,
             ];
@@ -136,9 +180,27 @@ class WhatsAppGateway
         };
 
         $fallbackToken = $setting('fonnte_token', '');
+        $provider = strtolower((string) $setting('wa_gateway_provider', 'fonnte'));
+
+        if ($provider === 'almara') {
+            // ALMARA Gateway WA memakai format gaya Fonnte — hanya URL & token yang perlu diisi.
+            return $this->config = [
+                'provider' => 'almara',
+                'endpoint' => self::almaraEndpoint((string) $setting('wa_gateway_endpoint', '')),
+                'token' => trim((string) $setting('wa_gateway_token', $fallbackToken)),
+                'auth_header' => 'Authorization',
+                'auth_prefix' => '',
+                'payload_format' => 'multipart',
+                'target_field' => 'target',
+                'message_field' => 'message',
+                'extra_payload' => ['countryCode' => '62'],
+                'success_key' => 'status',
+                'success_value' => 'true',
+            ];
+        }
 
         return $this->config = [
-            'provider' => strtolower((string) $setting('wa_gateway_provider', 'fonnte')),
+            'provider' => $provider,
             'endpoint' => (string) $setting('wa_gateway_endpoint', self::DEFAULT_ENDPOINT),
             'token' => trim((string) $setting('wa_gateway_token', $fallbackToken)),
             'auth_header' => (string) $setting('wa_gateway_auth_header', 'Authorization'),
@@ -155,6 +217,17 @@ class WhatsAppGateway
     public function isFonnte(): bool
     {
         return $this->config()['provider'] === 'fonnte';
+    }
+
+    public function isAlmara(): bool
+    {
+        return $this->config()['provider'] === 'almara';
+    }
+
+    /** Fonnte & ALMARA menerima payload yang sama (target, message, url untuk gambar). */
+    public function usesFonnteFormat(): bool
+    {
+        return in_array($this->config()['provider'], ['fonnte', 'almara'], true);
     }
 
     public function hasToken(): bool
@@ -237,6 +310,10 @@ class WhatsAppGateway
 
     private function currentTenantId(): ?int
     {
+        if ($this->tenantId) {
+            return $this->tenantId;
+        }
+
         return app(\App\Support\Tenancy\TenantContext::class)->id()
             ?? (auth()->user()?->tenant_id ? (int) auth()->user()->tenant_id : null);
     }

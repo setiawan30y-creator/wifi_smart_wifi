@@ -195,7 +195,8 @@
                                 <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
                                     <div>
                                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Provider Gateway</label>
-                                        <select name="wa_gateway_provider" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors">
+                                        <select name="wa_gateway_provider" data-wa-provider class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors">
+                                            <option value="almara" {{ $waGatewayProvider === 'almara' ? 'selected' : '' }}>ALMARA Gateway WA</option>
                                             <option value="fonnte" {{ $waGatewayProvider === 'fonnte' ? 'selected' : '' }}>Fonnte</option>
                                             <option value="custom" {{ $waGatewayProvider === 'custom' ? 'selected' : '' }}>Custom / Gateway Lain</option>
                                         </select>
@@ -209,20 +210,22 @@
                                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Token / API Key</label>
                                         <input type="text" name="wa_gateway_token" value="{{ $waGatewayToken }}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="Token API gateway">
                                         <input type="hidden" name="fonnte_token" value="{{ $waGatewayToken }}">
+                                        <p class="text-[10px] text-slate-500 mt-1" data-wa-almara-only>ALMARA: buka menu <b>Perangkat</b> → kolom <b>Token API</b> → Salin, lalu tempel di sini (diawali <span class="font-mono">alm_</span>).</p>
                                     </div>
                                     <div>
-                                        <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Endpoint Kirim Pesan</label>
-                                        <input type="url" name="wa_gateway_endpoint" value="{{ $waGatewayEndpoint }}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="https://api.provider.com/send">
+                                        <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider"><span data-wa-almara-only>URL ALMARA Gateway WA</span><span data-wa-other-only>Endpoint Kirim Pesan</span></label>
+                                        <input type="url" name="wa_gateway_endpoint" data-wa-endpoint value="{{ $waGatewayEndpoint }}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="https://api.provider.com/send">
+                                        <p class="text-[10px] text-slate-500 mt-1" data-wa-almara-only>Cukup alamat aplikasi gateway, mis. <span class="font-mono">https://wa.domainanda.com</span> — <span class="font-mono">/api/send</span> ditambahkan otomatis.</p>
                                     </div>
-                                    <div>
+                                    <div data-wa-advanced>
                                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Nama Header Token</label>
                                         <input type="text" name="wa_gateway_auth_header" value="{{ $waGatewayAuthHeader }}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="Authorization">
                                     </div>
-                                    <div>
+                                    <div data-wa-advanced>
                                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Prefix Token</label>
                                         <input type="text" name="wa_gateway_auth_prefix" value="{{ $waGatewayAuthPrefix }}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="Bearer atau kosong">
                                     </div>
-                                    <div>
+                                    <div data-wa-advanced>
                                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Format Payload</label>
                                         <select name="wa_gateway_payload_format" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors">
                                             <option value="multipart" {{ $waGatewayPayloadFormat === 'multipart' ? 'selected' : '' }}>multipart/form-data</option>
@@ -230,24 +233,24 @@
                                             <option value="json" {{ $waGatewayPayloadFormat === 'json' ? 'selected' : '' }}>JSON</option>
                                         </select>
                                     </div>
-                                    <div>
+                                    <div data-wa-advanced>
                                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Field Nomor Tujuan</label>
                                         <input type="text" name="wa_gateway_target_field" value="{{ $waGatewayTargetField }}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="target atau phone">
                                     </div>
-                                    <div>
+                                    <div data-wa-advanced>
                                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Field Isi Pesan</label>
                                         <input type="text" name="wa_gateway_message_field" value="{{ $waGatewayMessageField }}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="message atau text">
                                     </div>
-                                    <div>
+                                    <div data-wa-advanced>
                                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Success Key</label>
                                         <input type="text" name="wa_gateway_success_key" value="{{ $waGatewaySuccessKey }}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="status">
                                     </div>
-                                    <div>
+                                    <div data-wa-advanced>
                                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Success Value</label>
                                         <input type="text" name="wa_gateway_success_value" value="{{ $waGatewaySuccessValue }}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="true / success / 1">
                                     </div>
                                 </div>
-                                <div>
+                                <div data-wa-advanced>
                                     <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Payload Tambahan (JSON)</label>
                                     <textarea name="wa_gateway_extra_payload" rows="3" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors font-mono" placeholder='{"countryCode":"62"}'>{{ $waGatewayExtraPayload }}</textarea>
                                 </div>
@@ -1077,6 +1080,24 @@
 </div>
 
 <script>
+// WA Gateway: provider ALMARA cukup URL + token; field teknis disembunyikan. @2026-Alifiandra
+(function () {
+    var sel = document.querySelector('[data-wa-provider]');
+    if (!sel) return;
+    var endpoint = document.querySelector('[data-wa-endpoint]');
+    function apply() {
+        var almara = sel.value === 'almara';
+        document.querySelectorAll('[data-wa-advanced],[data-wa-other-only]').forEach(function (el) { el.style.display = almara ? 'none' : ''; });
+        document.querySelectorAll('[data-wa-almara-only]').forEach(function (el) { el.style.display = almara ? '' : 'none'; });
+        if (endpoint) {
+            if (almara && /fonnte\.com/i.test(endpoint.value)) endpoint.value = '';
+            endpoint.placeholder = almara ? 'https://wa.domainanda.com' : 'https://api.provider.com/send';
+        }
+    }
+    sel.addEventListener('change', apply);
+    apply();
+})();
+
     /**
      * Handles tab switching.
      */
