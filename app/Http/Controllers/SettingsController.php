@@ -57,6 +57,7 @@ class SettingsController extends Controller
         $companyFavicon = Setting::get('company_favicon');
         $fonnteToken = Setting::get('fonnte_token', '');
         $waGatewayProvider = Setting::get('wa_gateway_provider', 'fonnte');
+        $waGatewayInstance = Setting::get('wa_gateway_instance', '');
         $waGatewayToken = Setting::get('wa_gateway_token', $fonnteToken);
         $waGatewayEndpoint = Setting::get('wa_gateway_endpoint', 'https://api.fonnte.com/send');
         $waGatewayAuthHeader = Setting::get('wa_gateway_auth_header', 'Authorization');
@@ -162,6 +163,7 @@ class SettingsController extends Controller
             'placeholders',
             'fonnteToken',
             'waGatewayProvider',
+            'waGatewayInstance',
             'waGatewayToken',
             'waGatewayEndpoint',
             'waGatewayAuthHeader',
@@ -218,7 +220,8 @@ class SettingsController extends Controller
             'company_logo' => 'nullable|image|max:2048',
             'company_favicon' => 'nullable|image|mimes:ico,png,jpg,jpeg,webp|max:1024',
             'fonnte_token' => 'nullable|string|max:255',
-            'wa_gateway_provider' => 'nullable|in:almara,fonnte,custom',
+            'wa_gateway_provider' => 'nullable|in:' . implode(',', array_keys(\App\Services\WhatsAppGateway::providers())),
+            'wa_gateway_instance' => ['nullable', 'string', 'max:100', 'regex:/^[A-Za-z0-9._-]*$/'],
             'wa_gateway_token' => 'nullable|string|max:1000',
             'wa_gateway_endpoint' => 'nullable|url|max:1000',
             'wa_gateway_auth_header' => 'nullable|string|max:100',
@@ -266,6 +269,7 @@ class SettingsController extends Controller
         }
         foreach ([
             'wa_gateway_provider',
+            'wa_gateway_instance',
             'wa_gateway_token',
             'wa_gateway_endpoint',
             'wa_gateway_auth_header',

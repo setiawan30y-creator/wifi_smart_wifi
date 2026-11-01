@@ -23,6 +23,110 @@ class WhatsAppGateway
 {
     public const DEFAULT_ENDPOINT = 'https://api.fonnte.com/send';
 
+    /**
+     * Jasa WA gateway siap pakai (selain Fonnte & ALMARA). Pengguna cukup mengisi
+     * URL server (bila perlu), token, dan nama instance/session; format kirim otomatis.
+     *
+     * key => [
+     *   label, url bawaan|null, akhiran path yang ditambahkan ke URL server,
+     *   header token, prefix token, format payload, field nomor, akhiran nomor,
+     *   field pesan, payload tetap, success key, success value, petunjuk token
+     * ]
+     */
+    public const PRESETS = [
+        'wablas' => [
+            'label' => 'Wablas',
+            'default_url' => null,
+            'path' => '/api/send-message',
+            'auth_header' => 'Authorization', 'auth_prefix' => '',
+            'payload_format' => 'form',
+            'target_field' => 'phone', 'target_suffix' => '',
+            'message_field' => 'message',
+            'extra_payload' => [],
+            'success_key' => 'status', 'success_value' => 'true',
+            'url_hint' => 'URL server Wablas Anda, mis. https://tegal.wablas.com',
+            'token_hint' => 'Token perangkat. Jika di dashboard Wablas ada Secret Key, isi dengan format TOKEN.SECRETKEY',
+            'instance_label' => null,
+        ],
+        'starsender' => [
+            'label' => 'StarSender',
+            'default_url' => 'https://api.starsender.online',
+            'path' => '/api/send',
+            'auth_header' => 'Authorization', 'auth_prefix' => '',
+            'payload_format' => 'json',
+            'target_field' => 'to', 'target_suffix' => '',
+            'message_field' => 'body',
+            'extra_payload' => ['messageType' => 'text'],
+            'success_key' => 'success', 'success_value' => 'true',
+            'url_hint' => 'Boleh dikosongkan (otomatis https://api.starsender.online)',
+            'token_hint' => 'API Key perangkat dari dashboard StarSender',
+            'instance_label' => null,
+        ],
+        'evolution' => [
+            'label' => 'Evolution API (server sendiri)',
+            'default_url' => null,
+            'path' => '/message/sendText/{instance}',
+            'auth_header' => 'apikey', 'auth_prefix' => '',
+            'payload_format' => 'json',
+            'target_field' => 'number', 'target_suffix' => '',
+            'message_field' => 'text',
+            'extra_payload' => [],
+            'success_key' => '', 'success_value' => '',
+            'url_hint' => 'URL server Evolution API, mis. https://evo.domainanda.com',
+            'token_hint' => 'API key instance (atau global API key)',
+            'instance_label' => 'Nama Instance',
+        ],
+        'waha' => [
+            'label' => 'WAHA (server sendiri)',
+            'default_url' => null,
+            'path' => '/api/sendText',
+            'auth_header' => 'X-Api-Key', 'auth_prefix' => '',
+            'payload_format' => 'json',
+            'target_field' => 'chatId', 'target_suffix' => '@c.us',
+            'message_field' => 'text',
+            'extra_payload' => ['session' => '{instance}'],
+            'success_key' => '', 'success_value' => '',
+            'url_hint' => 'URL server WAHA, mis. https://waha.domainanda.com',
+            'token_hint' => 'Nilai WAHA_API_KEY server Anda',
+            'instance_label' => 'Nama Session',
+        ],
+    ];
+
+    /** Semua pilihan provider untuk halaman pengaturan. */
+    public static function providers(): array
+    {
+        return ['almara' => 'ALMARA Gateway WA', 'fonnte' => 'Fonnte']
+            + array_map(fn ($preset) => $preset['label'], self::PRESETS)
+            + ['custom' => 'Custom / Gateway Lain'];
+    }
+
+    /**
+     * URL kirim untuk provider siap pakai: URL server (tanpa path) + path provider.
+     */
+    public static function presetEndpoint(string $provider, string $url, string $instance = ''): string
+    {
+        $preset = self::PRESETS[$provider] ?? null;
+        if (!$preset) {
+            return '';
+        }
+
+        $base = rtrim(trim($url), '/') ?: (string) $preset['default_url'];
+        if ($base === '') {
+            return '';
+        }
+
+        $path = $preset['path'];
+        $staticPath = explode('/{', $path)[0];
+
+        // Pengguna kadang menempel URL lengkap; buang path yang sudah ada agar tidak dobel.
+        $position = stripos($base, $staticPath);
+        if ($position !== false && $staticPath !== '') {
+            $base = substr($base, 0, $position);
+        }
+
+        return rtrim($base, '/') . str_replace('{instance}', rawurlencode($instance !== '' ? $instance : 'default'), $path);
+    }
+
     private ?array $config = null;
 
     private ?int $tenantId = null;
@@ -66,10 +170,14 @@ class WhatsAppGateway
     {
         $gateway = $this->config();
 
-        if ($gateway['provider'] === 'almara' && $gateway['endpoint'] === '') {
+        if ($gateway['endpoint'] === '' && ($gateway['provider'] === 'almara' || isset(self::PRESETS[$gateway['provider']]))) {
+            $label = self::providers()[$gateway['provider']] ?? 'WA Gateway';
+
             return [
                 'success' => false,
-                'message' => 'URL ALMARA Gateway WA belum diisi di Pengaturan Perusahaan.',
+                'message' => $gateway['provider'] === 'almara'
+                    ? 'URL ALMARA Gateway WA belum diisi di Pengaturan Perusahaan.'
+                    : "URL server {$label} belum diisi di Pengaturan Perusahaan.",
                 'status' => 400,
             ];
         }
@@ -127,7 +235,7 @@ class WhatsAppGateway
 
             return [
                 'success' => false,
-                'message' => $result['reason'] ?? $result['message'] ?? data_get($result, 'error.message') ?? 'Gagal mengirim pesan',
+                'message' => $this->errorMessage($result, $response),
                 'data' => $result,
                 'status' => 400,
             ];
@@ -199,6 +307,27 @@ class WhatsAppGateway
             ];
         }
 
+        if (isset(self::PRESETS[$provider])) {
+            $preset = self::PRESETS[$provider];
+            $instance = trim((string) $setting('wa_gateway_instance', '')) ?: 'default';
+            $endpointSetting = (string) $setting('wa_gateway_endpoint', '');
+
+            return $this->config = [
+                'provider' => $provider,
+                'endpoint' => self::presetEndpoint($provider, str_contains($endpointSetting, 'fonnte.com') ? '' : $endpointSetting, $instance),
+                'token' => trim((string) $setting('wa_gateway_token', $fallbackToken)),
+                'auth_header' => $preset['auth_header'],
+                'auth_prefix' => $preset['auth_prefix'],
+                'payload_format' => $preset['payload_format'],
+                'target_field' => $preset['target_field'],
+                'target_suffix' => $preset['target_suffix'],
+                'message_field' => $preset['message_field'],
+                'extra_payload' => array_map(fn ($value) => is_string($value) ? str_replace('{instance}', $instance, $value) : $value, $preset['extra_payload']),
+                'success_key' => $preset['success_key'],
+                'success_value' => $preset['success_value'],
+            ];
+        }
+
         return $this->config = [
             'provider' => $provider,
             'endpoint' => (string) $setting('wa_gateway_endpoint', self::DEFAULT_ENDPOINT),
@@ -255,7 +384,7 @@ class WhatsAppGateway
     {
         $gateway = $this->config();
         $payload = array_merge($gateway['extra_payload'], [
-            $gateway['target_field'] ?: 'target' => $phone,
+            $gateway['target_field'] ?: 'target' => $phone . ($gateway['target_suffix'] ?? ''),
             $gateway['message_field'] ?: 'message' => $message,
         ]);
 
@@ -331,6 +460,23 @@ class WhatsAppGateway
         }
 
         return $headers;
+    }
+
+    /** Pesan error dari berbagai bentuk respons gateway. */
+    private function errorMessage(?array $result, Response $response): string
+    {
+        foreach (['reason', 'message', 'error.message', 'error', 'detail', 'response.message'] as $key) {
+            $value = data_get($result ?? [], $key);
+            if (is_string($value) && trim($value) !== '') {
+                return $value;
+            }
+        }
+
+        if (!$response->successful()) {
+            return 'Gateway menolak permintaan (HTTP ' . $response->status() . '). Periksa URL, token, dan nama instance/session.';
+        }
+
+        return 'Gagal mengirim pesan';
     }
 
     private function decodeExtraPayload(string $json): array

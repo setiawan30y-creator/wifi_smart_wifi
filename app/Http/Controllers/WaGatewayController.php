@@ -180,7 +180,12 @@ class WaGatewayController extends Controller
                     'url' => $transaction->qr_url,
                     'countryCode' => '62',
                 ])
-                : $gateway->postToCustomGateway($phone, $message);
+                // Gateway lain belum tentu bisa kirim gambar: kirim link QRIS di dalam teks.
+                : $gateway->postToCustomGateway($phone, str_replace(
+                    'pada gambar di atas',
+                    "melalui link berikut:\n" . $transaction->qr_url . "\n",
+                    $message
+                ));
 
             $result = $response->json();
             $isSuccess = $gateway->isSuccessful($response, $result);

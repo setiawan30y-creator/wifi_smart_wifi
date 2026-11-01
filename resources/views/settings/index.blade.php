@@ -196,10 +196,11 @@
                                     <div>
                                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Provider Gateway</label>
                                         <select name="wa_gateway_provider" data-wa-provider class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors">
-                                            <option value="almara" {{ $waGatewayProvider === 'almara' ? 'selected' : '' }}>ALMARA Gateway WA</option>
-                                            <option value="fonnte" {{ $waGatewayProvider === 'fonnte' ? 'selected' : '' }}>Fonnte</option>
-                                            <option value="custom" {{ $waGatewayProvider === 'custom' ? 'selected' : '' }}>Custom / Gateway Lain</option>
+                                            @foreach(\App\Services\WhatsAppGateway::providers() as $providerKey => $providerLabel)
+                                                <option value="{{ $providerKey }}" @selected($waGatewayProvider === $providerKey)>{{ $providerLabel }}</option>
+                                            @endforeach
                                         </select>
+                                        <p class="text-[10px] text-slate-500 mt-1">Pilih jasa WA gateway yang Anda pakai. Untuk jasa lain yang belum ada di daftar, pilih <b>Custom / Gateway Lain</b>.</p>
                                     </div>
                                     <div>
                                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Nomor WA Admin (Teknisi)</label>
@@ -210,12 +211,19 @@
                                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Token / API Key</label>
                                         <input type="text" name="wa_gateway_token" value="{{ $waGatewayToken }}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="Token API gateway">
                                         <input type="hidden" name="fonnte_token" value="{{ $waGatewayToken }}">
+                                        <p class="text-[10px] text-slate-500 mt-1" data-wa-preset-only data-wa-token-hint></p>
                                         <p class="text-[10px] text-slate-500 mt-1" data-wa-almara-only>ALMARA: buka menu <b>Perangkat</b> → kolom <b>Aksi</b> → <b>🔑 Salin token</b>, lalu tempel di sini (diawali <span class="font-mono">alm_</span>).</p>
                                     </div>
                                     <div>
-                                        <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider"><span data-wa-almara-only>URL ALMARA Gateway WA</span><span data-wa-other-only>Endpoint Kirim Pesan</span></label>
+                                        <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider"><span data-wa-almara-only>URL ALMARA Gateway WA</span><span data-wa-preset-only>URL Server</span><span data-wa-other-only>Endpoint Kirim Pesan</span></label>
                                         <input type="url" name="wa_gateway_endpoint" data-wa-endpoint value="{{ $waGatewayEndpoint }}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="https://api.provider.com/send">
+                                        <p class="text-[10px] text-slate-500 mt-1" data-wa-preset-only data-wa-url-hint></p>
                                         <p class="text-[10px] text-slate-500 mt-1" data-wa-almara-only>Cukup alamat aplikasi gateway, mis. <span class="font-mono">https://wa.domainanda.com</span> — <span class="font-mono">/api/send</span> ditambahkan otomatis.</p>
+                                    </div>
+                                    <div data-wa-instance-field>
+                                        <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider" data-wa-instance-label>Nama Instance</label>
+                                        <input type="text" name="wa_gateway_instance" value="{{ old('wa_gateway_instance', $waGatewayInstance) }}" class="w-full bg-slate-950 border border-slate-800 rounded-xl px-3.5 py-2 text-xs text-slate-200 focus:outline-none focus:border-indigo-500 transition-colors" placeholder="default">
+                                        <p class="text-[10px] text-slate-500 mt-1">Huruf, angka, titik, garis bawah, atau minus. Kosong = <span class="font-mono">default</span>.</p>
                                     </div>
                                     <div data-wa-advanced>
                                         <label class="block text-[9px] font-bold text-slate-500 mb-1 uppercase tracking-wider">Nama Header Token</label>
@@ -1080,18 +1088,37 @@
 </div>
 
 <script>
-// WA Gateway: provider ALMARA cukup URL + token; field teknis disembunyikan. @2026-Alifiandra
+// WA Gateway: ALMARA & jasa siap pakai cukup URL + token; field teknis hanya untuk Custom. @2026-Alifiandra
 (function () {
     var sel = document.querySelector('[data-wa-provider]');
     if (!sel) return;
+    var presets = @json(\App\Services\WhatsAppGateway::PRESETS);
     var endpoint = document.querySelector('[data-wa-endpoint]');
+    var show = function (selector, visible) {
+        document.querySelectorAll(selector).forEach(function (el) { el.style.display = visible ? '' : 'none'; });
+    };
     function apply() {
-        var almara = sel.value === 'almara';
-        document.querySelectorAll('[data-wa-advanced],[data-wa-other-only]').forEach(function (el) { el.style.display = almara ? 'none' : ''; });
-        document.querySelectorAll('[data-wa-almara-only]').forEach(function (el) { el.style.display = almara ? '' : 'none'; });
+        var provider = sel.value;
+        var almara = provider === 'almara';
+        var preset = presets[provider] || null;
+        var custom = !almara && !preset;
+
+        show('[data-wa-advanced],[data-wa-other-only]', custom);
+        show('[data-wa-almara-only]', almara);
+        show('[data-wa-preset-only]', !!preset);
+        show('[data-wa-instance-field]', !!(preset && preset.instance_label));
+
+        if (preset) {
+            document.querySelectorAll('[data-wa-url-hint]').forEach(function (el) { el.textContent = preset.url_hint; });
+            document.querySelectorAll('[data-wa-token-hint]').forEach(function (el) { el.textContent = preset.token_hint; });
+            document.querySelectorAll('[data-wa-instance-label]').forEach(function (el) { el.textContent = preset.instance_label || 'Nama Instance'; });
+        }
+
         if (endpoint) {
-            if (almara && /fonnte\.com/i.test(endpoint.value)) endpoint.value = '';
-            endpoint.placeholder = almara ? 'https://wa.domainanda.com' : 'https://api.provider.com/send';
+            if ((almara || preset) && /fonnte\.com/i.test(endpoint.value)) endpoint.value = '';
+            endpoint.placeholder = almara ? 'https://wa.domainanda.com'
+                : (preset ? (preset.default_url || 'https://server.domainanda.com') : 'https://api.provider.com/send');
+            endpoint.required = almara || !!(preset && !preset.default_url);
         }
     }
     sel.addEventListener('change', apply);
